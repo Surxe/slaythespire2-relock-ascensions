@@ -40,6 +40,16 @@ public sealed record Preview(
     }
 }
 
+/// <summary>Everything a relock editor needs: one row per scope, starting at the suggestion.</summary>
+public sealed record EditorState(
+    TargetInfo Target,
+    IReadOnlyList<EditorRow> Rows,
+    int HistoryFilesFailed,
+    string? Error)
+{
+    public bool Ok => Error is null;
+}
+
 public enum ApplyStatus
 {
     Applied,
@@ -66,6 +76,41 @@ public static class RelockApi
 
     /// <summary>Every playable character the game knows, including ones not yet in the save.</summary>
     public static IReadOnlyList<string> KnownCharacterIds() => Guard(GameAdapter.KnownCharacterIds, Array.Empty<string>());
+
+    /// <summary>
+    /// Player-facing name of a character scope, from the game's localization. Null for
+    /// non-character scopes and unknown ids; the front-end picks its own label then.
+    /// </summary>
+    public static string? CharacterTitle(Scope scope) =>
+        scope.Kind == ScopeKind.Character && scope.CharacterId is { } id
+            ? Guard(() => GameAdapter.CharacterTitle(id), null)
+            : null;
+
+    /// <summary>
+    /// Rows for a relock editor: every scope with what is unlocked, what the run history earned,
+    /// and the value to start at. Reads the save and history; writes nothing. Changes made in the
+    /// editor go back through <see cref="PreviewManual"/>.
+    /// </summary>
+    public static EditorState ReadEditor()
+    {
+        var target = DescribeTarget();
+        if (Unavailable() is { } why)
+        {
+            return new EditorState(target, Array.Empty<EditorRow>(), 0, why);
+        }
+        try
+        {
+            var snapshot = GameAdapter.ReadSnapshot();
+            var (runs, failed) = GameAdapter.ReadHistory();
+            var evidence = Planner.Recompute(snapshot, runs, GameAdapter.ReadCaps()).Evidence;
+            return new EditorState(target, RelockEditor.Rows(snapshot, evidence), failed, null);
+        }
+        catch (Exception e)
+        {
+            Log.Error($"Reading the editor state failed: {e}");
+            return new EditorState(target, Array.Empty<EditorRow>(), 0, e.Message);
+        }
+    }
 
     /// <summary>Manual relock preview. Writes nothing.</summary>
     public static Preview PreviewManual(IEnumerable<RelockRequest> requests)

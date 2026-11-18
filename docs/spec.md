@@ -1,6 +1,7 @@
 # Spec: Relock Ascensions (STS2 mod)
 
-Status: core, adapter and a dev-console front-end are implemented (see the README). Based on
+Status: core, adapter, a main-menu front-end and a dev-console front-end are implemented (see
+the README). Based on
 [research.md](research.md). This spec defines the logic and the seams that let further UIs be
 added without touching it. Section 10 records how each open decision was resolved.
 
@@ -146,6 +147,16 @@ the game has loaded is what gets written.
   versions; it refuses to write when a required member is missing.
 - Harmony patches are not used. The mod does not patch the game. (Unlock the Spire patches
   heavily; that is not needed here.)
+- The main-menu UI needs no patch either. The only game touchpoints are public API and scene
+  names: the scene tree's `node_added` signal, then `NGame.RootSceneContainer`'s
+  `child_entered_tree`; the `MainMenuTextButtons` container with its `CompendiumButton`
+  (copied as the template) and `QuitButton` (insert position); the main menu's
+  `SubmenuStack`; the scenes `modding_screen.tscn`, `modding_screen_row.tscn` and
+  `paginator.tscn` and their node names; and `NGenericPopup`, `NModalContainer` and the
+  `main_menu_ui` loc table. If a name moves in an update, the button is skipped or the screen
+  reports that it could not open, with a logged error, and the console still works.
+- The UI classes subclass game classes (`NSubmenu`, `NPaginator`). Godot's C# source
+  generators are referenced to make them Godot scripts (no Godot install needed to build).
 
 ## 6. Safety
 
@@ -164,8 +175,8 @@ the game has loaded is what gets written.
 
 ```
 Core (pure C#, tested)           Adapter (game)               Front-ends (later, thin)
-  Scopes, Model                    ReadState(Progress)          Dev-console command
-  Validation                       ReadHistory(runs)            Main-menu button/panel
+  Scopes, Model                    ReadState(Progress)          Dev-console command (built)
+  Validation                       ReadHistory(runs)            Main-menu button (built)
   Manual relock -> Plan            ApplyPlan(Plan) + save       Config file
   Replay -> evidence -> Plan       Caps, release checks         ...each just builds requests
   Preferred clamp                  Reflection for Blitz         and shows a Plan
@@ -219,14 +230,32 @@ Resolved (implemented defaults; revisit if testing shows otherwise):
    `RELOCK_GOLDEN_PROFILE` and skips when unset. No real saves are committed.
 5. **Random preferred:** clamped to the highest Character max after the plan.
 6. **Multiplayer vs. character maxes:** independent scopes, as the game treats them.
+7. **UI route:** both. The dev console (`relock`) covers manual and recompute. The main menu
+   gets a **relock screen**, an editor that combines the two routes. Every scope starts at the
+   level its run history earned (the recompute suggestion, `RelockEditor`), the player moves
+   any of them between 0 and the unlocked max, and the edited values go through the manual
+   planner. Save shows the changes in the game's confirmation popup and writes on confirm.
+   - Entry: a copy of the game's own menu button, added to the game's button column from a
+     scene-tree signal before the menu runs `_Ready`. No Harmony patch is needed. It matches
+     the stock entries, hides with them, and stacks with other mods' entries instead of
+     overlapping.
+   - Screen: the game's Mods screen and Mods rows with the mod's scripts swapped in, and the
+     settings paginator for the values.
+   - Strings: shipped in the mod's PCK as a `main_menu_ui` loc table, merged by the game.
+   - Shared library: considered and rejected. BaseLib has a mod-config screen, not a main-menu
+     button API, and is the suspected cause of the startup freezes (research). DevMode's KitLib
+     has a main-menu button registry, but only inside that mod.
+   - Raising (unlocking) is a separate change. It would let the editor go up to the cap and
+     lift the planner's "never above current max" rule (4.2), and it needs the in-game checks
+     listed under item 9.
 
 Still open:
 
-7. **UI route.** Dev console (`relock`) is built. Main-menu button with a preview dialog is not
-   decided.
 8. **Release.** `min_game_version` in the manifest (the loader warns when it is absent), author
    and version placeholders, and how to publish (Workshop or manual).
-9. **Remaining in-game checks.** Acceptance 3 (recompute on an unlocked fork, using the
+9. **Remaining in-game checks.** The relock screen (button placement next to Unlock the
+   Spire, screen layout and row fit, mouse and controller paging, Reset, confirm popup, apply
+   and refresh, back button), acceptance 3 (recompute on an unlocked fork, using the
    running-game fork procedure in research), refusal of `relock confirm` during a run, and
    acceptance 8 (SavesMerger off: the target should read `profileN (modded saves)`).
 
@@ -236,8 +265,9 @@ Still open:
   runtime uses), its unit tests, and the mod project that references the game DLLs
   (`sts2.dll`, `GodotSharp.dll`, `0Harmony.dll`) from a local copy. Those DLLs are not checked
   in; the build reads them from a path set in a local props file.
-- Output: `RelockAscensions.dll` plus a manifest (`RelockAscensions.json`) in the
-  `mods/` folder, following the loader's layout (section "Mod loading" in research).
+- Output: `RelockAscensions.dll`, a manifest (`RelockAscensions.json`) and
+  `RelockAscensions.pck` (localization only, written by `scripts/pack_pck.py`) in the `mods/`
+  folder, following the loader's layout (section "Mod loading" in research).
 - Deploy by copying the built files into the game folder. Mod-folder placement must be
   done by the player or by a small install script, never by editing the game install
   directly from `dev`.

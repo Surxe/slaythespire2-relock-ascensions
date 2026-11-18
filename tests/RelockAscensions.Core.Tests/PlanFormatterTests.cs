@@ -35,8 +35,8 @@ public class PlanFormatterTests
     {
         var lines = PlanFormatter.FormatEvidence(new[]
         {
-            new ScopeEvidence(Scope.Character(Ironclad), 7, 1),
-            new ScopeEvidence(Scope.Blitz, null, 0),
+            new ScopeEvidence(Scope.Character(Ironclad), 7, 1, 10),
+            new ScopeEvidence(Scope.Blitz, null, 0, 5),
         });
         Assert.Equal(new[] { "CHARACTER.IRONCLAD: evidence 7 (1 run)", "Blitz: no evidence, left unchanged" }, lines);
     }

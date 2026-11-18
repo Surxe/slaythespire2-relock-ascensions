@@ -73,7 +73,7 @@ public static class Planner
         foreach (var state in snapshot.Scopes)
         {
             replay.TryGetValue(state.Scope, out var result);
-            evidence.Add(new ScopeEvidence(state.Scope, result?.Evidence, result?.Runs ?? 0));
+            evidence.Add(new ScopeEvidence(state.Scope, result?.Evidence, result?.Runs ?? 0, state.Max));
 
             if (result is null)
             {

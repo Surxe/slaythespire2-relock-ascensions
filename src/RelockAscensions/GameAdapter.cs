@@ -26,8 +26,13 @@ internal static class GameAdapter
         var scopes = new List<ScopeState>();
         RandomState? random = null;
 
-        // Enumerated from the save, so modded characters are included.
-        foreach (var stats in progress.CharacterStats.Values.OrderBy(s => s.Id?.ToString(), StringComparer.Ordinal))
+        // Enumerated from the save, so modded characters are included. Ordered like the game lists
+        // characters (ModelDb.AllCharacters, the character select order); others follow by id.
+        var gameOrder = ModelDb.AllCharacters.Select(c => c.Id.ToString()).ToList();
+        int Rank(string? id) => gameOrder.IndexOf(id ?? "") is var i and >= 0 ? i : int.MaxValue;
+        foreach (var stats in progress.CharacterStats.Values
+                     .OrderBy(s => Rank(s.Id?.ToString()))
+                     .ThenBy(s => s.Id?.ToString(), StringComparer.Ordinal))
         {
             var id = stats.Id?.ToString();
             if (id is null || id == rotatingId)
@@ -66,6 +71,19 @@ internal static class GameAdapter
             .Select(c => c.Id.ToString())
             .Where(id => id != randomId && id != rotatingId)
             .ToList();
+    }
+
+    /// <summary>
+    /// The game's localized title for a character id (Random included), or null when the id is
+    /// not a known model, e.g. a character from a mod that is not loaded.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static string? CharacterTitle(string id)
+    {
+        var model = ModelDb.AllCharacters
+            .Append(ModelDb.Character<RandomCharacter>())
+            .FirstOrDefault(c => c.Id.ToString() == id);
+        return model?.Title.GetFormattedText();
     }
 
     public static Caps ReadCaps() =>
