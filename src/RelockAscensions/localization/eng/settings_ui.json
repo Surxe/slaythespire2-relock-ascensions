@@ -1,0 +1,5 @@
+{
+  "RELOCKASCENSIONS-HIDE_MAIN_MENU_BUTTON.title": "Hide main menu button",
+  "RELOCKASCENSIONS-HIDE_MAIN_MENU_BUTTON.hover.title": "Hide main menu button",
+  "RELOCKASCENSIONS-HIDE_MAIN_MENU_BUTTON.hover.desc": "Removes [gold]Relock Ascensions[/gold] from the main menu. The [gold]relock[/gold] console command still works."
+}

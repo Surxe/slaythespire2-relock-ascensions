@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Optional satellite: the mod's BaseLib Mod Configuration page. Shipped next to
+       RelockAscensions.dll; the game never loads it, the main mod does, and only when BaseLib is
+       already loaded (BaseLibBridge). BaseLib and the game DLLs are referenced, never copied. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <AssemblyName>RelockAscensions.BaseLibConfig</AssemblyName>
+    <RootNamespace>RelockAscensions.BaseLibConfig</RootNamespace>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+  </PropertyGroup>
+
+  <Target Name="CheckBaseLibDir" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(BaseLibDir)' == ''"
+           Text="BaseLibDir is not set. Set it in local.props to the folder holding BaseLib.dll (see local.props.example)." />
+    <Error Condition="'$(BaseLibDir)' != '' And !Exists('$(BaseLibDir)/BaseLib.dll')"
+           Text="BaseLib.dll not found in BaseLibDir ($(BaseLibDir))." />
+  </Target>
+
+  <ItemGroup>
+    <ProjectReference Include="../RelockAscensions/RelockAscensions.csproj" Private="false" />
+    <Reference Include="BaseLib" HintPath="$(BaseLibDir)/BaseLib.dll" Private="false" />
+    <Reference Include="sts2" HintPath="$(Sts2ManagedDir)/sts2.dll" Private="false" />
+    <Reference Include="GodotSharp" HintPath="$(Sts2ManagedDir)/GodotSharp.dll" Private="false" />
+  </ItemGroup>
+
+</Project>

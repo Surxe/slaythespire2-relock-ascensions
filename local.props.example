@@ -3,5 +3,8 @@
        (sts2.dll, GodotSharp.dll, 0Harmony.dll), e.g. a read-only copy exported from the install. -->
   <PropertyGroup>
     <Sts2ManagedDir>/srv/dev/scratch/sts2-mods/from-ethan/game</Sts2ManagedDir>
+    <!-- Folder holding BaseLib.dll (e.g. its Steam Workshop folder). Build-time only: it compiles
+         the optional RelockAscensions.BaseLibConfig.dll; the mod does not require BaseLib. -->
+    <BaseLibDir>/path/to/steamapps/workshop/content/2868840/3737335127/BaseLib</BaseLibDir>
   </PropertyGroup>
 </Project>

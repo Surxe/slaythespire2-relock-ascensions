@@ -26,6 +26,14 @@ screen instantiates the game's scenes (Mods screen, Mods row, settings paginator
 the mod's scripts, so fonts, textures, back button, scrolling and controller focus are the
 game's. Unlock the Spire's icon sits under the profile button, away from the column.
 
+## Settings (optional, needs BaseLib)
+
+With [BaseLib](https://steamcommunity.com/sharedfiles/filedetails/?id=3737335127) installed, the
+mod gets a page on BaseLib's Mod Configuration screen with one toggle, **Hide main menu button**.
+It applies at once; the console command keeps working. BaseLib is not required: without it the
+button always shows. The page is a separate DLL (`RelockAscensions.BaseLibConfig.dll`) that the
+mod loads only when BaseLib is present (spec 10.7).
+
 ## Console command
 
 Open the dev console with the backtick key (available whenever the game runs modded).
@@ -48,17 +56,18 @@ relock lowers it only when it would end up above the new max.
 |---|---|
 | `src/RelockAscensions.Core/` | Pure C# (no game types): model, validation, manual relock, evidence replay, preferred clamping, staleness check, preview text. |
 | `tests/RelockAscensions.Core.Tests/` | xUnit tests for the core, plus an opt-in golden replay test. |
-| `src/RelockAscensions/` | The mod assembly: core sources compiled in, plus the game adapter (`GameAdapter`, `Compat`) and the front-end seam (`RelockApi`). |
+| `src/RelockAscensions/` | The mod assembly: core sources compiled in, plus the game adapter (`GameAdapter`, `Compat`), the front-end seam (`RelockApi`), `Settings` and `BaseLibBridge`. No BaseLib reference. |
 | `src/RelockAscensions/Ui/` | Main-menu front-end: `MainMenuHook` (adds the button), `RelockScreen` (the editor submenu), `AscensionPaginator`, `SceneParts` (game scenes it is built from), `Popups`, `Strings`. |
+| `src/RelockAscensions.BaseLibConfig/` | Optional satellite DLL: the BaseLib Mod Configuration page, forwarding to `Settings`. Loaded by `BaseLibBridge` only when BaseLib is present. |
 | `src/RelockAscensions/localization/` | The mod's localization, packed into `RelockAscensions.pck` and merged by the game into its `main_menu_ui` table. Other languages fall back to English. |
 | `scripts/` | `test.sh`, `build.sh`, `install.sh`, `pack_pck.py` (writes the PCK; no Godot install needed). |
 
 ## Build and test
 
 ```bash
-cp local.props.example local.props   # set Sts2ManagedDir to the folder with sts2.dll
+cp local.props.example local.props   # set Sts2ManagedDir (sts2.dll) and BaseLibDir (BaseLib.dll)
 scripts/test.sh                      # core tests; no game files needed
-scripts/build.sh                     # Release build + PCK, staged in dist/RelockAscensions/
+scripts/build.sh                     # Release build (+ BaseLib config DLL) + PCK, staged in dist/RelockAscensions/
 ```
 
 Golden replay test (spec 8): point it at a profile's saves directory. Real saves are never
@@ -71,7 +80,7 @@ RELOCK_GOLDEN_PROFILE=/path/to/profile1 scripts/test.sh
 Install (run by the account that owns the game install, not `dev`):
 
 ```bash
-scripts/install.sh "/path/to/Slay the Spire 2"   # dll, json, pck -> <game>/mods/RelockAscensions/
+scripts/install.sh "/path/to/Slay the Spire 2"   # dlls, json, pck -> <game>/mods/RelockAscensions/
 ```
 
 ## Front-end seam
