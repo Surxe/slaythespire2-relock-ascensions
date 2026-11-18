@@ -32,6 +32,9 @@ internal static class MainMenuHook
 
     private static SceneTree? _tree;
 
+    /// <summary>The button on the current main menu, kept to apply setting changes live.</summary>
+    private static NMainMenuTextButton? _button;
+
     /// <summary>
     /// Starts with <c>SceneTree.node_added</c> (the root scene container may not exist yet at mod
     /// load) and narrows to the root scene container's <c>child_entered_tree</c> once it does, so
@@ -45,6 +48,7 @@ internal static class MainMenuHook
             return;
         }
         _tree = tree;
+        Settings.Changed += ApplyVisibility;
         if (!TryNarrow())
         {
             tree.Connect(SceneTree.SignalName.NodeAdded, OnNodeAddedCallable);
@@ -99,8 +103,24 @@ internal static class MainMenuHook
         }
     }
 
+    /// <summary>
+    /// Shows or hides the current menu's button from <see cref="Settings.HideMainMenuButton"/>.
+    /// The button stays in the column either way, like the stock entries the menu hides; Godot's
+    /// focus navigation skips hidden controls.
+    /// </summary>
+    private static void ApplyVisibility()
+    {
+        if (_button is { } button && GodotObject.IsInstanceValid(button))
+        {
+            button.Visible = !Settings.HideMainMenuButton;
+        }
+    }
+
     private static void Inject(NMainMenu menu)
     {
+        // Every mod is loaded once a menu exists, so this is where BaseLib can be detected. It
+        // loads the saved settings before the button's visibility is decided below.
+        BaseLibBridge.EnsureRegistered();
         try
         {
             var column = menu.GetNodeOrNull<Control>(ContainerPath);
@@ -124,8 +144,9 @@ internal static class MainMenuHook
             // The menu has not run _Ready yet, so the copy carries no signal connections.
             var button = (NMainMenuTextButton)template.Duplicate();
             button.Name = ButtonName;
-            button.Visible = true;
             column.AddChild(button);
+            _button = button;
+            ApplyVisibility();
             if (column.GetNodeOrNull(InsertBefore) is { } quit)
             {
                 column.MoveChild(button, quit.GetIndex());

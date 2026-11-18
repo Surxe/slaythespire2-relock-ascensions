@@ -30,7 +30,7 @@ All findings come from decompiling the game's managed assembly (`sts2.dll`) with
 - [Run history](#run-history)
 - [History replay (recompute route)](#history-replay-recompute-route)
 - [Design implications](#design-implications)
-- [Startup freeze (BaseLib)](#startup-freeze-baselib)
+- [Startup freeze (Steam overlay)](#startup-freeze-steam-overlay)
 - [Debug procedure: profile fork](#debug-procedure-profile-fork)
 - [Open items](#open-items)
 
@@ -297,21 +297,51 @@ known-good baseline.
     "Recompute from history" is a convenience layer over the manual relock.
 - Preview before writing: show old -> new per scope; apply only on confirmation.
 
-## Startup freeze (BaseLib)
+## Startup freeze (Steam overlay)
 
-Observed 2026-11-17 on v0.113.1: intermittent black screen at startup, with or without this mod.
-The log stops at a different step each time: mid cloud sync (one history-file read never
-returns), or after `Preloading 'IntroLogo' assets...` with Steam's `User stats received`
-missing. Every frozen launch had BaseLib (Workshop `3737335127`, plus
-BaseLibCompatibilityHelper) loaded; no content mod that needs it was loaded. After
-unsubscribing from BaseLib, launches reached the menu (including on the profile/launch pattern
-that froze before). Treat BaseLib as the likely cause; not yet confirmed over many launches.
+Observed 2026-11-17 on v0.113.1 (native Linux build, KDE Wayland via XWayland, NVIDIA): an
+intermittent black screen at startup that never recovers. The log stops at a different step each
+time: mid cloud sync, after `controller_atlas` loads, after `Global stats received`, or after
+`Preloading 'IntroLogo' assets...`.
+
+**Cause: a Steam overlay deadlock, not BaseLib.** On a hung launch the game's main thread sits in
+`recvmsg` on a Unix socket whose peer is `gameoverlayui`
+(`/tmp/steam_chrome_overlay_uid1000_spid<pid>`), with both queues empty and zero CPU over
+3 minutes. The overlay hook in the game blocks whichever frame it lands on, which is why the stop
+point varies. This is a known open Steam client bug,
+[steam-for-linux#13766](https://github.com/ValveSoftware/steam-for-linux/issues/13766) (we added
+these findings there on 2026-11-18); it reproduces without mods.
+
+- **Workaround:** disable the Steam overlay for the game (Properties > General). Five launches
+  in a row with BaseLib then reached the menu.
+- **BaseLib's role:** every hung launch had BaseLib (Workshop `3737335127`, plus
+  BaseLibCompatibilityHelper) loaded, and BaseLib-only launches hung often. It adds about 5 s to
+  startup (13.6 s to the main menu against about 8 s without it), which likely widens the window
+  for the race. It is not the cause, and it is safe to use with the overlay off.
+- Startup reaches the menu through a chain of awaits in `NGame.GameStartup`, each resumed on a
+  later main-thread frame, so a blocked frame looks like "startup stopped at step X".
+
+### Debugging a native hang
+
+gdb is no use here: the game runs inside Steam's pressure-vessel container, so gdb cannot read
+the binary and every frame is `??`. What works, run as the game's user while it is hung:
+
+1. Find the game pid: of the processes matching `spire`, the one with the most threads (the
+   first match is `steam-runtime-launcher`).
+2. Take snapshots of `/proc/<pid>/task/*/{comm,stat,wchan}` about 30 s apart, plus the log.
+   Compare with a healthy run on the main menu: there the main thread sleeps in
+   `hrtimer_nanosleep` between frames and gains about 44 CPU ticks per 30 s.
+   - `futex_do_wait` with flat CPU: lock deadlock. Rising CPU with a frozen log: spin.
+     A socket read with flat CPU: waiting on another process.
+3. For a socket wait: `/proc/<pid>/task/<tid>/syscall` gives the syscall number and fd,
+   `ls -l /proc/<pid>/fd` maps the fd to `socket:[inode]`, and `ss -xp` shows the peer process.
 
 The cloud-sync read path is fragile on its own: the sync reads up to 8 files concurrently via
 `GodotFileIo.ReadFileAsync`, whose `FileAccessStream` has only a synchronous `Read`, so .NET
 runs the reads on thread-pool threads calling Godot `FileAccess`. A local test tool (kept on a
 local branch, not in this repo's history) patched that read to be synchronous and logged Debug
-output for the sync, which is how the stuck file was found.
+output for the sync. The "stuck" history-file read it found was most likely the overlay blocking
+the frame, not the read itself.
 
 ## Debug procedure: profile fork
 

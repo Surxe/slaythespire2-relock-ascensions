@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/RelockAscensions.Core/RelockAscensions.Core.csproj" />
     <Project Path="src/RelockAscensions/RelockAscensions.csproj" />
+    <Project Path="src/RelockAscensions.BaseLibConfig/RelockAscensions.BaseLibConfig.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/RelockAscensions.Core.Tests/RelockAscensions.Core.Tests.csproj" />

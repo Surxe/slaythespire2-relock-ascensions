@@ -241,10 +241,20 @@ Resolved (implemented defaults; revisit if testing shows otherwise):
      overlapping.
    - Screen: the game's Mods screen and Mods rows with the mod's scripts swapped in, and the
      settings paginator for the values.
-   - Strings: shipped in the mod's PCK as a `main_menu_ui` loc table, merged by the game.
-   - Shared library: considered and rejected. BaseLib has a mod-config screen, not a main-menu
-     button API, and is the suspected cause of the startup freezes (research). DevMode's KitLib
-     has a main-menu button registry, but only inside that mod.
+   - Strings: shipped in the mod's PCK as `main_menu_ui` and `settings_ui` loc tables (the
+     latter for the BaseLib page's labels), merged by the game.
+   - Shared library: considered and rejected for the button. BaseLib has a mod-config screen,
+     not a main-menu button API. DevMode's KitLib has a main-menu button registry, but only
+     inside that mod. (The startup freezes once blamed on BaseLib came from the Steam overlay.)
+   - Settings: optional BaseLib page. One setting, **Hide main menu button** (the console
+     command still works), lives in `Settings` in the main assembly, default off. BaseLib stays
+     a soft dependency: the manifest declares none, and no type in `RelockAscensions.dll`
+     references BaseLib, because the loader calls `GetTypes()` on it and a `ModConfig`
+     subclass would fail to load without BaseLib. The `SimpleModConfig` subclass lives in
+     `RelockAscensions.BaseLibConfig.dll`, shipped alongside and loaded by the mod at the first
+     main menu (when every mod is loaded, so load order does not matter) only if BaseLib is in
+     the process. Its properties forward to `Settings`; BaseLib loads and saves them in
+     `mod_configs/RelockAscensions.cfg`. Without BaseLib the setting keeps its default.
    - Raising (unlocking) is a separate change. It would let the editor go up to the cap and
      lift the planner's "never above current max" rule (4.2), and it needs the in-game checks
      listed under item 9.
