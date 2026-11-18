@@ -9,6 +9,13 @@
     <RootNamespace>RelockAscensions</RootNamespace>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
     <GenerateDependencyFile>false</GenerateDependencyFile>
+    <!-- Godot's source generators make the UI classes (subclasses of the game's NSubmenu and
+         NPaginator) real Godot scripts: virtual calls like _Ready are dispatched through the
+         generated members. The plugin-initializer generator is for game executables, so it is
+         off. The generated [ScriptPath] attributes are inert for a mod: the loader never registers
+         mod assemblies with Godot, so their scripts are created from the type on first use. -->
+    <GodotProjectDir>$(MSBuildProjectDirectory)</GodotProjectDir>
+    <GodotDisabledSourceGenerators>GodotPluginsInitializer</GodotDisabledSourceGenerators>
   </PropertyGroup>
 
   <Target Name="CheckGameDir" BeforeTargets="ResolveAssemblyReferences">
@@ -23,6 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Godot.SourceGenerators" Version="4.5.1" PrivateAssets="all" />
     <Reference Include="sts2" HintPath="$(Sts2ManagedDir)/sts2.dll" Private="false" />
     <Reference Include="GodotSharp" HintPath="$(Sts2ManagedDir)/GodotSharp.dll" Private="false" />
     <Reference Include="0Harmony" HintPath="$(Sts2ManagedDir)/0Harmony.dll" Private="false" />

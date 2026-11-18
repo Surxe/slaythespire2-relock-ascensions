@@ -4,8 +4,9 @@ using MegaCrit.Sts2.Core.Modding;
 namespace RelockAscensions;
 
 /// <summary>
-/// Loader entry point. Only logs compatibility: the mod never scans, replays or writes at load
-/// (spec 6), and it applies no Harmony patches (spec 5.3). Declaring an initializer also stops
+/// Loader entry point. Logs compatibility and hooks the main-menu button (a scene-tree signal, not
+/// a patch). The mod never scans, replays or writes at load (spec 6), and it applies no Harmony
+/// patches (spec 5.3). Declaring an initializer also stops
 /// the loader from calling <c>Harmony.PatchAll</c> on this assembly.
 /// </summary>
 [ModInitializer(nameof(Initialize))]
@@ -30,6 +31,8 @@ public static class ModEntry
             {
                 Log.Error($"Writes disabled; missing: {string.Join(", ", Compat.Missing)}");
             }
+            // Only connects a scene-tree signal; the button reads nothing until pressed.
+            Ui.MainMenuHook.Install();
         }
         catch (Exception e)
         {

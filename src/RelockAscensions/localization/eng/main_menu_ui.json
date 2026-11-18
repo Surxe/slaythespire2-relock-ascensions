@@ -1,0 +1,21 @@
+{
+  "RELOCK_ASCENSIONS.MAIN_MENU_BUTTON": "Relock Ascensions",
+  "RELOCK_ASCENSIONS.SCREEN.title": "Ascensions",
+  "RELOCK_ASCENSIONS.SCREEN.save": "Save",
+  "RELOCK_ASCENSIONS.SCREEN.reset": "Reset",
+  "RELOCK_ASCENSIONS.SCREEN.intro": "Each Ascension starts at the highest level your runs on [gold]{profile}[/gold] have earned. Use the arrows to pick a different level, up to what you have unlocked.\n\nReset puts every row back to what your runs earned. Nothing is saved until you press Save.",
+  "RELOCK_ASCENSIONS.SCREEN.detail": "Unlocked {unlocked}, earned {earned}",
+  "RELOCK_ASCENSIONS.SCREEN.detailNoRuns": "Unlocked {unlocked}, no runs",
+  "RELOCK_ASCENSIONS.SCREEN.focus": "[gold]{scope}[/gold]\nUnlocked: {unlocked}\nEarned in your runs: {earned} ({runs} {runs:plural:run|runs})",
+  "RELOCK_ASCENSIONS.SCREEN.focusNoRuns": "[gold]{scope}[/gold]\nUnlocked: {unlocked}\nNo runs yet, so it stays at {unlocked} unless you change it.",
+  "RELOCK_ASCENSIONS.SCREEN.pending": "{count} {count:plural:Ascension goes|Ascensions go} down when you press Save.",
+  "RELOCK_ASCENSIONS.POPUP.header": "Save Ascensions",
+  "RELOCK_ASCENSIONS.POPUP.body": "These Ascensions on [gold]{profile}[/gold] go down:\n\n{rows}",
+  "RELOCK_ASCENSIONS.ROW.change": "{scope}: [gold]{from} -> {to}[/gold]",
+  "RELOCK_ASCENSIONS.NOTE.historyFailed": "[red]Couldn't read {count} {count:plural:run|runs} from your history.[/red]",
+  "RELOCK_ASCENSIONS.ERROR.body": "[red]{message}[/red]",
+  "RELOCK_ASCENSIONS.DONE.header": "Ascensions Saved",
+  "RELOCK_ASCENSIONS.DONE.body": "Saved to [gold]{profile}[/gold].",
+  "RELOCK_ASCENSIONS.NOT_SAVED.header": "Nothing Saved",
+  "RELOCK_ASCENSIONS.SCOPE.blitz": "Blitz"
+}

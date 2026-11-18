@@ -119,6 +119,7 @@ public sealed record Plan(IReadOnlyList<Change> Changes, IReadOnlyList<Rejection
 /// <summary>Outcome of replaying history for one scope.</summary>
 /// <param name="Evidence">Proven lower bound, or null when the scope has no eligible runs.</param>
 /// <param name="Runs">Number of eligible runs counted for this scope.</param>
-public sealed record ScopeEvidence(Scope Scope, int? Evidence, int Runs);
+/// <param name="CurrentMax">The scope's max in the loaded save, so a preview can show unchanged scopes.</param>
+public sealed record ScopeEvidence(Scope Scope, int? Evidence, int Runs, int CurrentMax);
 
 public sealed record RecomputeResult(Plan Plan, IReadOnlyList<ScopeEvidence> Evidence);
