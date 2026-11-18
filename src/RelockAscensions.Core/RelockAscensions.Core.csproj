@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Pure core: no game, Godot or Harmony references. The mod project compiles these sources
+       into its own assembly so the game loads a single DLL. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>RelockAscensions.Core</RootNamespace>
+  </PropertyGroup>
+
+</Project>

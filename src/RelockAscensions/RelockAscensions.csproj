@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The mod assembly loaded by the game: core sources + game adapter, in one DLL.
+       Game DLLs are referenced from $(Sts2ManagedDir) (set in local.props, not checked in)
+       and are never copied to the output. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <AssemblyName>RelockAscensions</AssemblyName>
+    <RootNamespace>RelockAscensions</RootNamespace>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+  </PropertyGroup>
+
+  <Target Name="CheckGameDir" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(Sts2ManagedDir)' == ''"
+           Text="Sts2ManagedDir is not set. Copy local.props.example to local.props and point it at the folder holding sts2.dll." />
+    <Error Condition="'$(Sts2ManagedDir)' != '' And !Exists('$(Sts2ManagedDir)/sts2.dll')"
+           Text="sts2.dll not found in Sts2ManagedDir ($(Sts2ManagedDir))." />
+  </Target>
+
+  <ItemGroup>
+    <Compile Include="../RelockAscensions.Core/**/*.cs" Exclude="../RelockAscensions.Core/obj/**;../RelockAscensions.Core/bin/**" LinkBase="Core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="sts2" HintPath="$(Sts2ManagedDir)/sts2.dll" Private="false" />
+    <Reference Include="GodotSharp" HintPath="$(Sts2ManagedDir)/GodotSharp.dll" Private="false" />
+    <Reference Include="0Harmony" HintPath="$(Sts2ManagedDir)/0Harmony.dll" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="RelockAscensions.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
