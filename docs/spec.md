@@ -255,9 +255,7 @@ Resolved (implemented defaults; revisit if testing shows otherwise):
      main menu (when every mod is loaded, so load order does not matter) only if BaseLib is in
      the process. Its properties forward to `Settings`; BaseLib loads and saves them in
      `mod_configs/RelockAscensions.cfg`. Without BaseLib the setting keeps its default.
-   - Raising (unlocking) is a separate change. It would let the editor go up to the cap and
-     lift the planner's "never above current max" rule (4.2), and it needs the in-game checks
-     listed under item 9.
+   - Raising (unlocking) is a separate change: item 10.
 
 Still open:
 
@@ -268,6 +266,36 @@ Still open:
    and refresh, back button), acceptance 3 (recompute on an unlocked fork, using the
    running-game fork procedure in research), refusal of `relock confirm` during a run, and
    acceptance 8 (SavesMerger off: the target should read `profileN (modded saves)`).
+10. **Unlocking (decided, not yet implemented).** The mod also raises ascensions; relocking
+    stays the selling point and the name. Background: research, "Ascension epochs
+    (unlocking)". When implemented, update sections 1, 2, 4.2, 4.4 and 9 to match.
+    - **Range:** every scope goes from 0 to its cap (modded characters: 10, as today). The
+      planner rejects only values above the cap (`AboveCurrentMax` becomes `AboveCap`); a
+      change can go either way.
+    - **Preferred:** unchanged when a max goes up; lowering still clamps it (4.3).
+    - **Epochs:** raising a vanilla character above 0 also reveals its ascension epoch
+      (`<CHAR>4_EPOCH`) through `ObtainEpochOverride(id, Revealed)` when it is not revealed.
+      That epoch also unlocks the character's three potions; accepted, and stated in the
+      confirm popup and the player-facing docs. Modded characters have no epoch gate.
+      Relocking never hides an epoch. The staleness check covers epoch state.
+    - **Blitz:** raisable only when `BlitzEpoch` is revealed (Blitz mode unlocked). The mod
+      never reveals `BlitzEpoch`; otherwise Blitz's arrows stop at its current level. The
+      player-facing docs say Blitz must be unlocked first.
+    - **Recompute can raise:** the plan proposes `NewMax = evidence` whenever it differs from
+      the current max (no evidence: still no change). Acceptance 5 is reversed. The console's
+      `relock recompute` follows.
+    - **Console:** `relock set <scope> <max>` accepts 0 to the cap.
+    - **Screen:** rows open at the current unlocked level. **Reset** returns every row there
+      (discards edits). A new **Use Run History** button sets each row to what its runs
+      earned (up or down; rows with no runs stay), with help text in the right-hand info panel
+      while it is hovered or focused. Rows set above their unlocked level show in a different
+      color from lowered ones; the pending line and confirm popup are direction-neutral and
+      group raises and relocks, with one line per epoch the save will reveal. The right-hand
+      panel notes that a character appears only after it has been selected once in character
+      select. No "earned more than unlocked" nudge.
+    - **Player-facing docs (later):** FAQ "Can I unlock ascensions too? A: Yes! While the
+      selling point is relocking ascensions and many other mods feature unlocking, this mod
+      does too for convenience.", plus the potion side effect and the Blitz prerequisite.
 
 ## 11. Build and deploy (proposed)
 
