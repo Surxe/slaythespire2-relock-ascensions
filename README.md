@@ -6,8 +6,21 @@ recompute that proposes what the local run history can prove. Both only ever low
 
 Design: [docs/spec.md](docs/spec.md). Background: [docs/research.md](docs/research.md).
 
-**Status:** core logic and game adapter are built. There is no front-end yet (spec 10.7), so
-nothing in the game calls the mod; it loads, logs its compatibility, and stays inert.
+**Status:** core logic, game adapter and a dev-console front-end are built. Nothing runs at
+load; every action comes from the `relock` console command.
+
+## Console command
+
+Open the dev console with the backtick key (available whenever the game runs modded).
+
+```
+relock target                 show the profile that would be written
+relock state                  every scope with max / preferred / cap
+relock set <scope> <max>      preview a manual relock (scope: ironclad, mp, blitz, CHARACTER.X)
+relock recompute              preview a recompute from run history, with evidence per scope
+relock confirm                write the last preview
+relock cancel                 drop the last preview
+```
 
 ## Layout
 
@@ -60,4 +73,4 @@ A front-end only talks to `RelockAscensions.RelockApi`:
 | 4 | Fixture location | Synthetic fixtures in the repo; golden test reads real saves from `RELOCK_GOLDEN_PROFILE`. |
 | 5 | Random preferred | Clamped to the highest Character max after the plan. |
 | 6 | Multiplayer vs. character max | No coupling; each scope is independent. Still open. |
-| 7 | UI route | Not built. |
+| 7 | UI route | Dev console (`relock`). Main-menu UI not built. |
