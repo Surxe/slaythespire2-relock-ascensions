@@ -1,0 +1,7 @@
+<Project>
+  <!-- Copy to local.props (git-ignored) and set the folder that holds the game's managed DLLs
+       (sts2.dll, GodotSharp.dll, 0Harmony.dll), e.g. a read-only copy exported from the install. -->
+  <PropertyGroup>
+    <Sts2ManagedDir>/srv/dev/scratch/sts2-mods/from-ethan/game</Sts2ManagedDir>
+  </PropertyGroup>
+</Project>
