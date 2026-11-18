@@ -1,7 +1,8 @@
 # Spec: Relock Ascensions (STS2 mod)
 
-Status: draft. Based on [research.md](research.md). The UI and input route are **not decided**;
-this spec defines the logic and the seams that let a UI be added later without touching it.
+Status: core, adapter and a dev-console front-end are implemented (see the README). Based on
+[research.md](research.md). This spec defines the logic and the seams that let further UIs be
+added without touching it. Section 10 records how each open decision was resolved.
 
 ## 1. Goal
 
@@ -179,19 +180,22 @@ Front-ends may only: build `RelockRequest`s or ask for a recompute, show a `Plan
   no-evidence rule. Test cases are small synthetic run sets; the spec does not commit the
   player's real saves.
 - **Replay golden test:** the validated `profile1` result from research (Ironclad, Silent,
-  Regent, Necrobinder = 10; Defect = 9; Multiplayer = 10; Blitz and the rest = 0). This
+  Regent, Necrobinder = 10; Defect = 9; Multiplayer = 10). Scopes with no eligible runs (Blitz,
+FOOL, HELLOSPIRE-*: never played solo) have **no evidence** and are left unchanged (4.4); on
+the real profile their saved value is 0, on an unlocked fork they stay at the cap. This
   needs real run data. Decide where that fixture lives (section 10).
 - **Adapter tests:** not automated. They run in the game.
 - **In-game acceptance:** section 9, on a fork profile only.
 
 ## 9. Acceptance criteria
 
-1. With no mod action, the save is byte-identical before and after loading and switching
-   profiles.
+1. With no mod action, the mod writes nothing: no write is logged by the mod and the ascension
+   fields are unchanged after loading and switching profiles. (Byte-identity cannot be checked:
+   the game itself rewrites the active profile's `progress.save` on quit.)
 2. A manual relock on a fork profile changes only the requested scope, plus preferred
    clamping, and nothing else in `progress.save`.
 3. A recompute on the fork profile, built from a copy of `profile1` history, reproduces the
-   golden table in section 8.
+   golden table in section 8 (scopes with no evidence keep their unlocked value).
 4. A scope with no eligible runs is left unchanged.
 5. A recompute never raises any value.
 6. Cancelling the preview writes nothing.
@@ -199,26 +203,32 @@ Front-ends may only: build `RelockRequest`s or ask for a recompute, show a `Plan
 8. The mod works whether SavesMerger is enabled or not, and writes to the same profile the
    game shows.
 
-## 10. Open decisions
+## 10. Decisions
 
-1. **Writes during an active run.** Does the game hold `progress.save` in memory during a run,
-   so that a relock could be overwritten at run end or on the next save? Needs a test. The
-   simplest rule is to block writes while a run is in progress.
-2. **Recompute overshoots on incomplete history.** The replay is a lower bound, so missing runs
-   (other devices beyond the cloud quota) make it relock too far. Options: (a) keep the
-   preview as the only guard; (b) add a "recompute only when history covers N runs" check;
-   (c) lower to evidence only for scopes where the player confirms each one.
-3. **Backups before write.** Write our own timestamped copy of `progress.save` first, or rely
-   on the game's `.backup` files? The game's copies are overwritten on each save, so they do
-   not work as a long-term undo.
-4. **Fixture location.** Real saves contain gameplay data and the player's run history. Keep
-   them out of the repo and use synthetic fixtures, or keep a reduced golden fixture?
-5. **Random preferred.** Clamp to the highest Character max (current proposal), or leave
-   preferred alone and let the game clamp it at lobby time?
-6. **Multiplayer cap of 10 across all characters.** Confirm the expected relock behavior when
-   multiplayer is lowered below a character's Standard max.
-7. **UI route.** Dev console, main-menu button, config file, or a combination. Deferred; the
-   core/adapter split means this does not block the logic.
+Resolved (implemented defaults; revisit if testing shows otherwise):
+
+1. **Writes during an active run:** blocked (`RunManager.IsInProgress`). The mod edits the same
+   in-memory `ProgressState` the game saves, so a write would not be lost, but a run holds its own
+   unlock state; blocking is simplest. In-game refusal not yet tested.
+2. **Recompute overshoot on incomplete history:** the preview is the only guard (option a). It
+   shows evidence and eligible-run count per scope, so a thinly covered scope is visible before
+   confirming.
+3. **Backups before write:** none. A file backup would mean building save paths, which this spec
+   avoids (5.2). Every write logs `scope: old -> new`, which serves as the undo record.
+4. **Fixture location:** synthetic fixtures in the repo; the golden test reads real saves from
+   `RELOCK_GOLDEN_PROFILE` and skips when unset. No real saves are committed.
+5. **Random preferred:** clamped to the highest Character max after the plan.
+6. **Multiplayer vs. character maxes:** independent scopes, as the game treats them.
+
+Still open:
+
+7. **UI route.** Dev console (`relock`) is built. Main-menu button with a preview dialog is not
+   decided.
+8. **Release.** `min_game_version` in the manifest (the loader warns when it is absent), author
+   and version placeholders, and how to publish (Workshop or manual).
+9. **Remaining in-game checks.** Acceptance 3 (recompute on an unlocked fork, using the
+   running-game fork procedure in research), refusal of `relock confirm` during a run, and
+   acceptance 8 (SavesMerger off: the target should read `profileN (modded saves)`).
 
 ## 11. Build and deploy (proposed)
 

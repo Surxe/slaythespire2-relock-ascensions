@@ -30,6 +30,7 @@ All findings come from decompiling the game's managed assembly (`sts2.dll`) with
 - [Run history](#run-history)
 - [History replay (recompute route)](#history-replay-recompute-route)
 - [Design implications](#design-implications)
+- [Startup freeze (BaseLib)](#startup-freeze-baselib)
 - [Debug procedure: profile fork](#debug-procedure-profile-fork)
 - [Open items](#open-items)
 
@@ -169,6 +170,17 @@ create an unused `modded/` copy.
   older local-only runs.
 - Deleting a profile in-game removes it from the cloud too (`SaveManager.DeleteProfile`).
   Deleting files on disk can be undone by the next cloud sync.
+- **Startup sync deletes local-only files.** `CloudSaveStore.SyncCloudToLocal` runs on every
+  launch (whenever Steam is initialized, regardless of the cloud toggle) and deletes any local
+  save file that does not exist in the cloud ("Deleting ... because it does not exist on
+  remote"). Files copied into a profile slot with the game closed are therefore wiped on the next
+  launch. Observed on 2026-11-17: a forked `profile3` (progress + 137 history files) was deleted
+  this way, and switching to the slot created a fresh default `progress.save`.
+- **Quit rewrites the active profile.** `NGame.Quit` always calls `SaveProgressFile()` (and
+  prefs/profile saves) for the active profile, so its `progress.save` changes on disk even when
+  nothing in it changed.
+- Files the game writes during a session (via `SaveProgressFile` etc.) are uploaded immediately
+  through the remote store; files only copied onto disk are not.
 
 ## Reference mod: Unlock the Spire
 
@@ -285,20 +297,40 @@ known-good baseline.
     "Recompute from history" is a convenience layer over the manual relock.
 - Preview before writing: show old -> new per scope; apply only on confirmation.
 
+## Startup freeze (BaseLib)
+
+Observed 2026-11-17 on v0.113.1: intermittent black screen at startup, with or without this mod.
+The log stops at a different step each time: mid cloud sync (one history-file read never
+returns), or after `Preloading 'IntroLogo' assets...` with Steam's `User stats received`
+missing. Every frozen launch had BaseLib (Workshop `3737335127`, plus
+BaseLibCompatibilityHelper) loaded; no content mod that needs it was loaded. After
+unsubscribing from BaseLib, launches reached the menu (including on the profile/launch pattern
+that froze before). Treat BaseLib as the likely cause; not yet confirmed over many launches.
+
+The cloud-sync read path is fragile on its own: the sync reads up to 8 files concurrently via
+`GodotFileIo.ReadFileAsync`, whose `FileAccessStream` has only a synchronous `Read`, so .NET
+runs the reads on thread-pool threads calling Godot `FileAccess`. A local test tool (kept on a
+local branch, not in this repo's history) patched that read to be synchronous and logged Debug
+output for the sync, which is how the stuck file was found.
+
 ## Debug procedure: profile fork
 
-To test against realistic history without risking the real profile:
+To test against realistic history without risking the real profile. Because of the startup
+sync (see [Steam Cloud](#steam-cloud)), the copy must be made **while the game is running**:
 
-1. With the game closed, copy `profile1/saves/{progress.save,history/}` into the `profile3`
-   slot of the save tree in use (vanilla with SavesMerger).
-2. Launch with mods, switch to profile 3, press Unlock the Spire's button.
-3. Run the relock / recompute on profile 3.
-4. Expected result: profile 3's ascension values equal the baseline table above
-   (profile 1's `progress.save` is the oracle).
-5. Clean up by deleting profile 3 **in-game**, so it is removed from Steam Cloud too.
+1. Launch with mods and wait for the main menu, staying on profile 1.
+2. With the game running, copy `profile1/saves/{progress.save,history/}` into `profile3/saves/`
+   of the save tree in use (vanilla with SavesMerger).
+3. Switch to profile 3 in-game (the game reads the copied save at the switch), check it shows
+   profile 1's progress, then press Unlock the Spire's button.
+4. Run the relock / recompute on profile 3 (`relock recompute`, `relock confirm`).
+5. Expected result: the golden table (characters and multiplayer as in profile 1; scopes with no
+   evidence keep their unlocked value).
+6. Clean up by deleting profile 3 **in-game**, so it is removed from Steam Cloud too. The copied
+   history files are never uploaded, so the next startup sync deletes any that remain.
 
 Caution: with SavesMerger on, Unlock the Spire's button acts on the shared vanilla profile.
-Only press it on the fork slot.
+Only press it on the fork slot. Take a full copy of `steam/<steamid>/` first.
 
 ## Open items
 

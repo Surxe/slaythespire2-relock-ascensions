@@ -66,14 +66,7 @@ A front-end only talks to `RelockAscensions.RelockApi`:
    anything moved since the preview, refuses during a run, and saves through
    `SaveManager.SaveProgressFile()`.
 
-## Defaults taken for open decisions (spec 10)
+## Decisions and remaining work
 
-| # | Decision | Implemented default |
-|---|---|---|
-| 1 | Writes during a run | Blocked (`RunManager.IsInProgress`). |
-| 2 | Recompute overshoot | Preview is the only guard (option a). Evidence and run counts are shown per scope. |
-| 3 | Backups before write | Not implemented; relies on the preview. Still open. |
-| 4 | Fixture location | Synthetic fixtures in the repo; golden test reads real saves from `RELOCK_GOLDEN_PROFILE`. |
-| 5 | Random preferred | Clamped to the highest Character max after the plan. |
-| 6 | Multiplayer vs. character max | No coupling; each scope is independent. Still open. |
-| 7 | UI route | Dev console (`relock`). Main-menu UI not built. |
+See [spec section 10](docs/spec.md#10-decisions) for how each design decision was resolved and
+what is still open (front-end route, release details, remaining in-game checks).
