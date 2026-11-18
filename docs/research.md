@@ -21,6 +21,7 @@ All findings come from decompiling the game's managed assembly (`sts2.dll`) with
 - [Ascension data model](#ascension-data-model)
 - [How the game advances ascension](#how-the-game-advances-ascension)
 - [Random character](#random-character)
+- [Ascension epochs (unlocking)](#ascension-epochs-unlocking)
 - [Mod loading](#mod-loading)
 - [Save tree: vanilla vs modded](#save-tree-vanilla-vs-modded)
 - [SavesMerger](#savesmerger)
@@ -207,6 +208,79 @@ Driven by a click; nothing happens at load.
 - Takeaways for this mod: same entry point style (main-menu, user-triggered), same API
   (`SaveManager.Instance.Progress` + `SaveProgressFile()`), and use reflection for
   fields that might not exist in a given build.
+
+## Ascension epochs (unlocking)
+
+Studied for raising ascension (unlocking), on the same `v0.113.1` beta build. Types are in
+`sts2.dll`; the lobby logic is `StartRunLobby`.
+
+### What gates the ascension selector
+
+- **Singleplayer, per character:** `StartRunLobby.SetSingleplayerAscensionAfterCharacterChanged`
+  disables ascension (max 0) when `IsAscensionEpochRevealed(character)` is false, whatever the
+  stored max. That check is a hard-coded map to each character's **"4" epoch**:
+
+  | Character | Epoch type | Epoch id |
+  |---|---|---|
+  | Ironclad | `Ironclad4Epoch` | `IRONCLAD4_EPOCH` |
+  | Silent | `Silent4Epoch` | `SILENT4_EPOCH` |
+  | Regent | `Regent4Epoch` | `REGENT4_EPOCH` |
+  | Defect | `Defect4Epoch` | `DEFECT4_EPOCH` |
+  | Necrobinder | `Necrobinder4Epoch` | `NECROBINDER4_EPOCH` |
+  | Fool | `Fool4Epoch` | `FOOL4_EPOCH` |
+
+  Any other character id (**modded characters**) returns `true`: no epoch gate, the stored
+  max applies directly. The panel also hides when the stored max is 0.
+- **Random:** the lobby uses the highest `MaxAscension` across all characters, with no
+  epoch check.
+- **Multiplayer:** no epoch gate. The party max is the lowest `MaxMultiplayerAscension`
+  among the players (`UpdateMaxSharedAscension`), so raising your own value only matters
+  when the rest of the party has it too.
+- **Blitz:** no ascension epoch, but the Blitz mode buttons themselves are enabled only when
+  `BlitzEpoch` is revealed (`NSingleplayerSubmenu`, `NMultiplayerHostSubmenu`). A raised
+  Blitz max is invisible until Blitz is unlocked.
+- Character stats are created by `GetOrCreateCharacterStats` the first time a character is
+  selected, so a character the player has never picked has no row in `character_stats`.
+
+### What revealing the epoch also does
+
+- Each "4" epoch also unlocks that character's **three potions**: the character potion
+  pool (`IroncladPotionPool.GetUnlockedPotions` etc.) returns nothing until the same epoch is
+  revealed, and the epochs are counted in `GetPotionUnlockEpochIds` (potion unlock stats).
+  The game cannot unlock ascension for a character without unlocking those potions too.
+- The "4" epochs do not override `GetTimelineExpansion`, so revealing one opens no further
+  timeline slots and triggers nothing else. (Their slots are opened by `NeowEpoch`'s
+  expansion.) Load-time validation in `ProgressState` only repairs children of revealed
+  epochs, so a revealed "4" epoch needs no repair.
+- Normal route: beating the Act 3 boss with the character obtains it
+  (`ProgressSaveManager.ObtainCharUnlockEpoch`, `<CHAR>` + `4_EPOCH`); clicking it on the
+  Timeline reveals it (`SaveManager.RevealEpoch`, which also uploads a metric and plays the
+  potion-unlock popups via `QueueUnlocks`).
+
+### How to reveal from a mod
+
+- `SaveManager.Instance.ObtainEpochOverride(id, EpochState.Revealed)` sets the state in any
+  direction and creates the entry if missing (stamping `ObtainDate`). Unlock the Spire and
+  the game's own `unlock epochs` console command use this.
+- Do not use `RevealEpoch`: it throws when the entry is missing and sends a metric.
+- `SaveManager.Instance.IsEpochRevealed(id)` (state `>= Revealed`) reads it. Both work with
+  string ids, so the adapter needs no epoch types.
+- Relocking does not need to touch epochs: with the epoch revealed and max 0, the panel hides.
+
+### Must appear in the player-facing docs
+
+When unlocking ships, the mod docs (and the confirm popup, for the first) must state:
+
+- Raising a character's ascension reveals its "4" epoch, which also unlocks that character's
+  three potions.
+- Blitz must be unlocked first (`BlitzEpoch`) before its ascension can be raised; the mod
+  does not unlock Blitz.
+
+### Reference: the game's `unlock ascensions` console command
+
+`UnlockConsoleCmd.UnlockAscensions` sets multiplayer to 10, Blitz to 5 and every character in
+`ModelDb.AllCharacters` (creating stats) to max 10. It does not touch preferred levels or
+epochs, so on a fresh profile it has no visible effect until the "4" epochs are revealed.
 
 ## Profiles and switching
 
