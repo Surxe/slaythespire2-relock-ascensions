@@ -35,7 +35,7 @@ public sealed class RelockConsoleCmd : AbstractConsoleCmd
             return (args.Length == 0 ? "" : args[0].ToLowerInvariant()) switch
             {
                 "target" => Ok($"Target: {RelockApi.DescribeTarget().Label}"),
-                "state" => State(),
+                "state" or "status" => State(),
                 "set" => Set(args),
                 "recompute" => Show(RelockApi.PreviewRecompute()),
                 "confirm" => Confirm(),
@@ -71,10 +71,10 @@ public sealed class RelockConsoleCmd : AbstractConsoleCmd
             return Fail("Could not read state; see the log.");
         }
         var lines = new List<string> { $"Target: {RelockApi.DescribeTarget().Label}" };
-        lines.AddRange(state.Scopes.Select(s => $"{s.Scope}: max {s.Max}, preferred {s.Preferred} (cap {s.Cap})"));
+        lines.AddRange(state.Scopes.Select(s => $"{s.Scope}: max {s.Max}, selected level {s.Preferred} (cap {s.Cap})"));
         if (state.Random is { } r)
         {
-            lines.Add($"{r.CharacterId}: preferred {r.Preferred} (not relockable; clamped automatically)");
+            lines.Add($"{r.CharacterId}: selected level {r.Preferred} (no max of its own; kept at or below the highest character max)");
         }
         return Ok(string.Join("\n", lines));
     }
@@ -91,6 +91,11 @@ public sealed class RelockConsoleCmd : AbstractConsoleCmd
         }
         if (ScopeNames.Resolve(args[1], state.Scopes) is not { } scope)
         {
+            if (ScopeNames.MatchCharacterId(args[1], RelockApi.KnownCharacterIds()) is { } unplayed)
+            {
+                // The game only adds a character's stats the first time it is played.
+                return Fail($"{unplayed} has no ascension progress on this profile yet (max 0), so there is nothing to lower.");
+            }
             return Fail($"Unknown scope '{args[1]}'. Try: {string.Join(", ", ScopeNames.ShortNames(state.Scopes))}");
         }
         return Show(RelockApi.PreviewManual(new[] { new RelockRequest(scope, newMax) }));

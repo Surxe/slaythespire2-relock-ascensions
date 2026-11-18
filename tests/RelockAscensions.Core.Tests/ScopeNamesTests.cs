@@ -44,4 +44,13 @@ public class ScopeNamesTests
     [Fact]
     public void Short_names() =>
         Assert.Equal(new[] { "ironclad", "hellospire-paladin", "multiplayer", "blitz" }, ScopeNames.ShortNames(Scopes));
+
+    [Fact]
+    public void Matches_known_character_not_in_save()
+    {
+        var known = new[] { "CHARACTER.IRONCLAD", "CHARACTER.SILENT" };
+        Assert.Null(ScopeNames.Resolve("silent", Scopes));
+        Assert.Equal("CHARACTER.SILENT", ScopeNames.MatchCharacterId("Silent", known));
+        Assert.Null(ScopeNames.MatchCharacterId("watcher", known));
+    }
 }

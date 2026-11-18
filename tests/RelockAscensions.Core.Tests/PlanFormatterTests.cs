@@ -17,9 +17,9 @@ public class PlanFormatterTests
         });
 
         Assert.Equal(
-            "CHARACTER.IRONCLAD: max 10 -> 5, preferred 10 -> 5\n" +
+            "CHARACTER.IRONCLAD: max 10 -> 5 (selected level 10 -> 5)\n" +
             "Multiplayer: max 10 -> 6\n" +
-            "CHARACTER.RANDOM_CHARACTER: preferred 10 -> 5\n" +
+            "CHARACTER.RANDOM_CHARACTER: selected level 10 -> 5\n" +
             "rejected Blitz: not a relockable scope in the loaded save",
             PlanFormatter.Format(plan));
     }

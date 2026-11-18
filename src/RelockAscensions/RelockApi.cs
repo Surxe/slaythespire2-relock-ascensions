@@ -64,6 +64,9 @@ public static class RelockApi
     /// <summary>Current scopes, for building a manual-relock UI.</summary>
     public static ProgressSnapshot? ReadState() => Compat.CanWrite ? Guard(GameAdapter.ReadSnapshot, null) : null;
 
+    /// <summary>Every playable character the game knows, including ones not yet in the save.</summary>
+    public static IReadOnlyList<string> KnownCharacterIds() => Guard(GameAdapter.KnownCharacterIds, Array.Empty<string>());
+
     /// <summary>Manual relock preview. Writes nothing.</summary>
     public static Preview PreviewManual(IEnumerable<RelockRequest> requests)
     {

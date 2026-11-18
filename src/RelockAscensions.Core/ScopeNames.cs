@@ -24,9 +24,21 @@ public static class ScopeNames
             return available.Contains(fixedScope) ? fixedScope : null;
         }
 
-        var characters = available.Where(s => s.Kind == ScopeKind.Character).ToList();
-        return characters.FirstOrDefault(s => string.Equals(s.CharacterId, name, StringComparison.OrdinalIgnoreCase))
-            ?? characters.FirstOrDefault(s => string.Equals(Entry(s.CharacterId!), name, StringComparison.OrdinalIgnoreCase));
+        var id = MatchCharacterId(name, available.Where(s => s.Kind == ScopeKind.Character).Select(s => s.CharacterId!));
+        return id is null ? null : Scope.Character(id);
+    }
+
+    /// <summary>
+    /// Matches a typed name against character ids by full id or entry alone, case-insensitively.
+    /// Used both for scopes in the save and for every character the game knows, so a character
+    /// with no entry in the save yet (never played on this profile) can be told apart from a typo.
+    /// </summary>
+    public static string? MatchCharacterId(string input, IEnumerable<string> characterIds)
+    {
+        var name = input.Trim();
+        var ids = characterIds.ToList();
+        return ids.FirstOrDefault(id => string.Equals(id, name, StringComparison.OrdinalIgnoreCase))
+            ?? ids.FirstOrDefault(id => string.Equals(Entry(id), name, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>Short names for completion: <c>ironclad</c>, ..., <c>multiplayer</c>, <c>blitz</c>.</summary>

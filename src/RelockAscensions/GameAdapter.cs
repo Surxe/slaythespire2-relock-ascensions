@@ -56,6 +56,18 @@ internal static class GameAdapter
         return new ProgressSnapshot(scopes, random);
     }
 
+    /// <summary>Every playable character the game knows (pseudo-characters excluded).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static IReadOnlyList<string> KnownCharacterIds()
+    {
+        var randomId = ModelDb.GetId<RandomCharacter>().ToString();
+        var rotatingId = ModelDb.GetId<RotatingCharacter>().ToString();
+        return ModelDb.AllCharacters
+            .Select(c => c.Id.ToString())
+            .Where(id => id != randomId && id != rotatingId)
+            .ToList();
+    }
+
     public static Caps ReadCaps() =>
         new(Compat.StandardCap, Compat.StandardCap, Compat.HasBlitz ? Compat.BlitzCap : null);
 

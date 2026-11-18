@@ -18,18 +18,19 @@ public static class PlanFormatter
         return plan.Changes.Select(FormatChange).ToList();
     }
 
+    /// <summary>
+    /// <c>Ironclad: max 10 -> 5 (selected level 10 -> 5)</c>. "Selected level" is the game's
+    /// preferred ascension: the level character select starts on.
+    /// </summary>
     public static string FormatChange(Change c)
     {
-        var parts = new List<string>();
-        if (c.ChangesMax)
+        var selected = $"selected level {c.OldPreferred} -> {c.NewPreferred}";
+        if (!c.ChangesMax)
         {
-            parts.Add($"max {c.OldMax} -> {c.NewMax}");
+            return $"{c.Scope}: {selected}";
         }
-        if (c.ChangesPreferred)
-        {
-            parts.Add($"preferred {c.OldPreferred} -> {c.NewPreferred}");
-        }
-        return $"{c.Scope}: {string.Join(", ", parts)}";
+        var max = $"{c.Scope}: max {c.OldMax} -> {c.NewMax}";
+        return c.ChangesPreferred ? $"{max} ({selected})" : max;
     }
 
     public static IReadOnlyList<string> FormatRejections(Plan plan) =>

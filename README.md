@@ -15,12 +15,15 @@ Open the dev console with the backtick key (available whenever the game runs mod
 
 ```
 relock target                 show the profile that would be written
-relock state                  every scope with max / preferred / cap
+relock state                  every scope with max / selected level / cap (alias: status)
 relock set <scope> <max>      preview a manual relock (scope: ironclad, mp, blitz, CHARACTER.X)
 relock recompute              preview a recompute from run history, with evidence per scope
 relock confirm                write the last preview
 relock cancel                 drop the last preview
 ```
+
+"Selected level" is the game's preferred ascension: the level character select starts on. A
+relock lowers it only when it would end up above the new max.
 
 ## Layout
 
