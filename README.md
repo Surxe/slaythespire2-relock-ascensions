@@ -19,14 +19,15 @@ built. Nothing runs at load; every action starts from the screen or the `relock`
 built from the game's own Mods screen. It has one row per character, plus Multiplayer and Blitz.
 Each row shows what is unlocked and what your run history earned (`Unlocked 10, earned 9`), and
 the settings screen's `< 9 >` arrows start at the unlocked level. Move any row down to 0 or up
-to the cap (10, Blitz 5; Blitz stops at its current level while Blitz is locked). A row's name
-turns green above its unlocked level and gold below. The buttons sit at the bottom of the list.
-**Reset** returns every row to its unlocked level. **Use Run History** sets every row to what
-its runs earned (rows with no runs stay); its help shows in the info panel on hover or
-controller focus. **Save** lists the changes, grouped Up and Down with one line naming every
-character whose Ascension and potions it unlocks, in the game's confirmation popup and writes
-them only when you confirm. A character appears only once it has been selected in character
-select.
+to the cap (10, Blitz 5). Blitz appears only once it is unlocked in the game, like a character
+you have never selected. A row's name turns green above its unlocked level and gold below. The
+buttons sit at the bottom of the list. **Reset** returns every row to its unlocked level. **Use
+Run History** sets every row to what its runs earned (rows with no runs stay); its help shows in
+the info panel on hover or controller focus. Hovering or focusing a row shows the runs behind
+"earned", whether raising also unlocks potions, and what Save would change. **Save** lists the
+changes, grouped Up and Down with one line naming every character whose Ascension and potions it
+unlocks, in the game's confirmation popup and writes them only when you confirm. A character
+appears only once it has been selected in character select.
 
 Nothing here patches the game (no Harmony). The button is a copy of the game's own menu button
 in the game's own column, added when the main menu enters the scene tree, so it animates, takes

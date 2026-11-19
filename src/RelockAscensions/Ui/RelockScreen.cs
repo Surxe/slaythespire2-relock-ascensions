@@ -332,9 +332,15 @@ public partial class RelockScreen : NSubmenu
             {
                 text += "\n" + Strings.Text("SCREEN.focusRevealsEpoch", ("scope", scope));
             }
-            if (m.RaiseLocked)
+            // What Save would do to this row, so the panel adds to the row instead of repeating it.
+            var value = row.Paginator.Value;
+            if (value != m.Unlocked)
             {
-                text += "\n" + Strings.Text("SCREEN.focusBlitzLocked", ("scope", scope));
+                text += "\n\n" + Strings.Text("SCREEN.focusChange", ("from", m.Unlocked), ("to", value));
+                if (m.PreferredAfter(value) != m.Preferred)
+                {
+                    text += " " + Strings.Text("SCREEN.focusPreferred", ("from", m.Preferred), ("to", m.PreferredAfter(value)));
+                }
             }
         }
         if (state.HistoryFilesFailed > 0)

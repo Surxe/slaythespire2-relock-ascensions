@@ -302,8 +302,9 @@ Resolved (implemented defaults; revisit if testing shows otherwise):
       confirm popup and the player-facing docs. Modded characters have no epoch gate.
       Relocking never hides an epoch. The staleness check covers epoch state.
     - **Blitz:** raisable only when `BlitzEpoch` is revealed (Blitz mode unlocked). The mod
-      never reveals `BlitzEpoch`; otherwise Blitz's arrows stop at its current level
-      (`RaiseLocked`). The player-facing docs say Blitz must be unlocked first.
+      never reveals `BlitzEpoch`. While Blitz is locked (`RaiseLocked`) the screen hides its
+      row, as the game hides a character never selected; the planner still allows lowering it
+      (console). The player-facing docs say Blitz must be unlocked first.
     - **Recompute can raise:** the plan proposes `NewMax = evidence` (within the ceiling)
       whenever it differs from the current max (no evidence: still no change). Acceptance 5 is
       reversed. The console's `relock recompute` follows.
@@ -316,9 +317,12 @@ Resolved (implemented defaults; revisit if testing shows otherwise):
       groups raises ("Up") and relocks ("Down"), with one line naming every character whose
       epoch the save will reveal. Reset, Use Run History and Save sit left-justified in the
       list box, pinned to its bottom.
-      The right-hand panel notes that a character appears only after it has been selected once
-      in character select, and on a hovered or focused row whether raising unlocks its Ascension and
-      potions or whether Blitz must be unlocked first. No "earned more than unlocked" nudge.
+      The right-hand panel notes that Blitz and every character except Ironclad must be
+      unlocked in the game before their Ascension can be raised, and that a character appears
+      once selected in character select and Blitz once unlocked. For the hovered or focused row
+      it adds what the row does not show: the run count behind "earned" and why it can be too
+      low, whether raising unlocks the character's Ascension and potions, and what Save would
+      change (max, and the selected level when it drops). No "earned more than unlocked" nudge.
     - **Player-facing docs (later):** FAQ "Can I unlock ascensions too? A: Yes! While the
       selling point is relocking ascensions and many other mods feature unlocking, this mod
       does too for convenience.", plus the potion side effect and the Blitz prerequisite.
