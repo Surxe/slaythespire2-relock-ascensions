@@ -443,7 +443,7 @@ public partial class RelockScreen : NSubmenu
     }
 
     /// <summary>
-    /// Moves the buttons into the bordered list, left-justified in one line pinned to its bottom,
+    /// Moves the buttons into the bordered list, centered in one line pinned to its bottom,
     /// so they stay put whatever the number of rows; the scroll area ends above them. In the Mods
     /// scene they sit above the list, where the title needs the room (and they get no hover or
     /// clicks there in game). Use Run History is wider for its longer label.
@@ -456,10 +456,9 @@ public partial class RelockScreen : NSubmenu
         var height = size.Y + 2 * gap;
 
         var margin = new MarginContainer { Name = "RelockButtons" };
-        margin.AddThemeConstantOverride("margin_left", (int)RowMargin);
         margin.AddThemeConstantOverride("margin_top", gap);
         margin.AddThemeConstantOverride("margin_bottom", gap);
-        var bar = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Begin };
+        var bar = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         bar.AddThemeConstantOverride("separation", gap);
         margin.AddChild(bar);
         foreach (var button in buttons)

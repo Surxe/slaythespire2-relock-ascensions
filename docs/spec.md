@@ -315,7 +315,7 @@ Resolved (implemented defaults; revisit if testing shows otherwise):
       info panel while it is hovered or focused. A row's name is green above its unlocked
       level and gold below. The pending line and confirm popup are direction-neutral; the popup
       groups raises ("Up") and relocks ("Down"), with one line naming every character whose
-      epoch the save will reveal. Reset, Use Run History and Save sit left-justified in the
+      epoch the save will reveal. Reset, Use Run History and Save sit centered in the
       list box, pinned to its bottom.
       The right-hand panel notes that Blitz and every character except Ironclad must be
       unlocked in the game before their Ascension can be raised, and that a character appears
