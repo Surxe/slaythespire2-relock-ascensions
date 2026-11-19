@@ -451,7 +451,7 @@ public partial class RelockScreen : NSubmenu
     private void AddButtonBar(params NButton[] buttons)
     {
         const int gap = 12;
-        const float wideFactor = 1.6f;
+        const float wideFactor = 2f;
         var size = _resetButton.Size;
         var height = size.Y + 2 * gap;
 
@@ -465,7 +465,12 @@ public partial class RelockScreen : NSubmenu
         foreach (var button in buttons)
         {
             button.GetParent()?.RemoveChild(button);
-            button.CustomMinimumSize = button == _historyButton ? new Vector2(size.X * wideFactor, size.Y) : size;
+            var width = button == _historyButton ? size.X * wideFactor : size.X;
+            if (width > size.X)
+            {
+                Widen(button, size.X, width - size.X);
+            }
+            button.CustomMinimumSize = new Vector2(width, size.Y);
             button.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
             button.SizeFlagsVertical = SizeFlags.ShrinkCenter;
             bar.AddChild(button);
@@ -485,6 +490,25 @@ public partial class RelockScreen : NSubmenu
         margin.GrowVertical = GrowDirection.Begin;
         margin.OffsetTop = -height;
         _scroll.OffsetBottom -= height; // rows scroll above the bar, never under it
+    }
+
+    /// <summary>
+    /// Widening the button alone leaves its art and label (laid out for the original width) as
+    /// they were, so every fixed-width control inside that spans most of the button grows by the
+    /// same amount. The log lines show the sizes, for checking against the game's layout.
+    /// </summary>
+    private static void Widen(NButton button, float originalWidth, float extra)
+    {
+        foreach (var control in Controls(button).Where(c => c != button))
+        {
+            var before = control.Size;
+            // Controls anchored to both sides already follow the button; widen only fixed ones.
+            if (before.X >= originalWidth * 0.5f && Mathf.IsEqualApprox(control.AnchorLeft, control.AnchorRight))
+            {
+                control.Size = before with { X = before.X + extra };
+            }
+            Log.Info($"Widen {button.Name}/{button.GetPathTo(control)}: {before} -> {control.Size}");
+        }
     }
 
     /// <summary>
