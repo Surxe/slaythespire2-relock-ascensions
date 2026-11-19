@@ -427,7 +427,10 @@ public partial class RelockScreen : NSubmenu
 
     /// <summary>
     /// The Mods screen's buttons are never disabled there, so they have no disabled look. Use the
-    /// one their own unfocus animation already picks (gray label when disabled).
+    /// one their own unfocus animation already picks (gray label when disabled), and fade the
+    /// whole button too: a disabled button ignores hover, and a gray label alone reads as merely
+    /// unhovered. The button script tweens the label's modulate and the visuals' position, never
+    /// the visuals' modulate, so this sticks.
     /// </summary>
     private static void SetEnabled(NButton button, bool enabled)
     {
@@ -440,7 +443,10 @@ public partial class RelockScreen : NSubmenu
             button.Disable();
         }
         button.GetNode<MegaLabel>("Visuals/Label").Modulate = enabled ? StsColors.cream : StsColors.gray;
+        button.GetNode<Control>("Visuals").Modulate = enabled ? Colors.White : DisabledButtonTint;
     }
+
+    private static readonly Color DisabledButtonTint = new(1, 1, 1, 0.45f);
 
     /// <summary>
     /// Moves the buttons into the bordered list, centered in one line pinned to its bottom,
