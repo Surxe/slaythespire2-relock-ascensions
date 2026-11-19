@@ -20,16 +20,55 @@ internal static class Popups
     public static Task Notice(LocString header, LocString body) =>
         Show(header, body, null, Strings.GameOk);
 
-    /// <summary>One line per change: <c>Defect: 10 -> 9</c>.</summary>
-    public static string ChangeRows(PreviewSummary summary) => string.Join("\n", summary.Rows
-        .Where(r => r.Change is not null)
-        .Select(r =>
+    /// <summary>
+    /// The changes grouped under "Up" and "Down", one line each (<c>Defect: 10 -> 9</c>), then one
+    /// line naming every character whose epoch a raise reveals.
+    /// </summary>
+    public static string ChangeRows(PreviewSummary summary)
+    {
+        var changes = summary.Rows.Where(r => r.Change is not null).Select(r => r.Change!).ToList();
+        var lines = new List<string>();
+        void Group(string header, IReadOnlyCollection<Change> group)
         {
-            var c = r.Change!;
-            // The Random entry only moves its selected level; its max is not a real track.
-            var (from, to) = c.ChangesMax ? (c.OldMax, c.NewMax) : (c.OldPreferred, c.NewPreferred);
-            return Strings.Text("ROW.change", ("scope", Strings.ScopeName(c.Scope)), ("from", from), ("to", to));
-        }));
+            if (group.Count == 0)
+            {
+                return;
+            }
+            if (lines.Count > 0)
+            {
+                lines.Add("");
+            }
+            lines.Add(Strings.Text(header));
+            lines.AddRange(group.Select(Line));
+        }
+        // The Random entry only lowers its selected level, so it goes with the lowered ones.
+        Group("POPUP.raised", changes.Where(c => c.Raises).ToList());
+        Group("POPUP.lowered", changes.Where(c => !c.Raises).ToList());
+
+        // One line for every character whose epoch the save reveals.
+        var reveals = changes
+            .Where(c => c.Raises && c.RevealEpoch is not null)
+            .Select(c => Strings.ScopeName(c.Scope))
+            .ToList();
+        if (reveals.Count > 0)
+        {
+            lines.Add("");
+            lines.Add(Strings.Text("ROW.revealsEpoch", ("characters", JoinNames(reveals))));
+        }
+        return string.Join("\n", lines);
+    }
+
+    /// <summary><c>Ironclad</c>, <c>Ironclad and Silent</c>, <c>Ironclad, Silent and Defect</c>.</summary>
+    private static string JoinNames(IReadOnlyList<string> names) => names.Count == 1
+        ? names[0]
+        : Strings.Text("LIST.and", ("first", string.Join(", ", names.Take(names.Count - 1))), ("last", names[^1]));
+
+    private static string Line(Change c)
+    {
+        // The Random entry only moves its selected level; its max is not a real track.
+        var (from, to) = c.ChangesMax ? (c.OldMax, c.NewMax) : (c.OldPreferred, c.NewPreferred);
+        return Strings.Text("ROW.change", ("scope", Strings.ScopeName(c.Scope)), ("from", from), ("to", to));
+    }
 
     /// <summary>
     /// Shows one popup and waits for its answer. The popup's buttons clear the modal container

@@ -39,6 +39,16 @@ public class PreviewSummaryTests
     }
 
     [Fact]
+    public void Rows_carry_the_epoch_to_reveal()
+    {
+        var snap = Snapshot(HiddenChar(Defect, 1, 1));
+        var plan = Planner.Plan(snap, new[] { new RelockRequest(Scope.Character(Defect), 6) });
+
+        var row = Assert.Single(PreviewSummary.Build(plan, null).Rows);
+        Assert.Equal("DEFECT4_EPOCH", row.Change!.RevealEpoch);
+    }
+
+    [Fact]
     public void Manual_preview_lists_only_changes_without_run_counts()
     {
         var snap = Snapshot(Char(Ironclad, 10, 10));

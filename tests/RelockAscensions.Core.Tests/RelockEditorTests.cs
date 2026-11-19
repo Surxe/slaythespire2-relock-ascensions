@@ -6,19 +6,50 @@ namespace RelockAscensions.Core.Tests;
 public class RelockEditorTests
 {
     [Fact]
-    public void Rows_start_at_earned_and_keep_unlocked_without_runs()
+    public void Rows_offer_the_ceiling_and_take_history_values()
     {
-        var snap = Snapshot(Char(Ironclad, 10, 10), Char(Silent, 3, 3), Mp(10, 10), Blitz(5, 5));
-        var runs = new[] { Sp(Ironclad, 4), Sp(Ironclad, 4, win: true), Sp(Silent, 3, win: true), MpRun(10) };
+        var snap = Snapshot(Char(Ironclad, 10, 10), HiddenChar(Silent, 3, 3), Mp(10, 10), LockedBlitz(2, 2));
+        var runs = new[]
+        {
+            Sp(Ironclad, 4), Sp(Ironclad, 4, win: true), Sp(Silent, 3, win: true), MpRun(10),
+            Run(RunMode.Blitz, 4, win: true),
+        };
         var evidence = Planner.Recompute(snap, runs, AllCaps).Evidence;
 
         var rows = RelockEditor.Rows(snap, evidence);
 
-        Assert.Collection(rows,
-            r => { Assert.Equal(5, r.Earned); Assert.Equal(5, r.Suggested); Assert.Equal(2, r.Runs); Assert.Equal(10, r.Max); },
-            r => { Assert.Equal(4, r.Earned); Assert.Equal(3, r.Suggested); }, // earned above unlocked: capped
-            r => { Assert.Equal(10, r.Suggested); Assert.Equal(1, r.Runs); },
-            r => { Assert.Null(r.Earned); Assert.Equal(5, r.Suggested); Assert.Equal(0, r.Runs); });
+        Assert.Collection(rows, // locked Blitz gets no row
+            r => { Assert.Equal(5, r.Earned); Assert.Equal(5, r.FromHistory); Assert.Equal(2, r.Runs); Assert.Equal(10, r.Max); Assert.False(r.RevealsEpoch); },
+            r => { Assert.Equal(4, r.FromHistory); Assert.Equal(3, r.Unlocked); Assert.Equal(10, r.Max); Assert.True(r.RevealsEpoch); }, // above unlocked
+            r => { Assert.Equal(10, r.FromHistory); Assert.Equal(1, r.Runs); });
+    }
+
+    [Fact]
+    public void Unlocked_blitz_gets_a_row()
+    {
+        var rows = RelockEditor.Rows(Snapshot(Blitz(2, 2)), Array.Empty<ScopeEvidence>());
+        Assert.Equal(Scope.Blitz, Assert.Single(rows).Scope);
+    }
+
+    [Fact]
+    public void Preferred_after_saving_is_clamped_only_when_lowering()
+    {
+        var row = Assert.Single(RelockEditor.Rows(Snapshot(Char(Ironclad, 8, 6)), Array.Empty<ScopeEvidence>()));
+
+        Assert.Equal(6, row.Preferred);
+        Assert.Equal(4, row.PreferredAfter(4));
+        Assert.Equal(6, row.PreferredAfter(10));
+    }
+
+    [Fact]
+    public void Rows_without_runs_keep_unlocked_from_history()
+    {
+        var snap = Snapshot(Blitz(3, 3));
+        var row = Assert.Single(RelockEditor.Rows(snap, Array.Empty<ScopeEvidence>()));
+
+        Assert.Null(row.Earned);
+        Assert.Equal(3, row.FromHistory);
+        Assert.Equal(5, row.Max);
     }
 
     [Fact]

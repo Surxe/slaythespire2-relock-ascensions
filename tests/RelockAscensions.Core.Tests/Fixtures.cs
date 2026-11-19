@@ -7,6 +7,8 @@ internal static class Fx
     public const string Ironclad = "CHARACTER.IRONCLAD";
     public const string Silent = "CHARACTER.SILENT";
     public const string Defect = "CHARACTER.DEFECT";
+    public const string Fool = "CHARACTER.FOOL";
+    public const string Modded = "CHARACTER.HELLOSPIRE-PALADIN";
     public const string RandomId = "CHARACTER.RANDOM_CHARACTER";
 
     public static readonly Caps AllCaps = new(10, 10, 5);
@@ -18,6 +20,13 @@ internal static class Fx
     public static ScopeState Mp(int max, int preferred) => new(Scope.Multiplayer, max, preferred, 10);
 
     public static ScopeState Blitz(int max, int preferred) => new(Scope.Blitz, max, preferred, 5);
+
+    /// <summary>A character whose ascension epoch is not revealed yet.</summary>
+    public static ScopeState HiddenChar(string id, int max, int preferred) =>
+        Char(id, max, preferred) with { HiddenEpoch = AscensionEpochs.For(id) };
+
+    /// <summary>Blitz while Blitz itself is locked: it cannot be raised.</summary>
+    public static ScopeState LockedBlitz(int max, int preferred) => Blitz(max, preferred) with { RaiseLocked = true };
 
     public static ProgressSnapshot Snapshot(params ScopeState[] scopes) => new(scopes, null);
 

@@ -32,7 +32,22 @@ public sealed record Scope(ScopeKind Kind, string? CharacterId)
 }
 
 /// <summary>Current values of one scope, as read from the loaded save.</summary>
-public sealed record ScopeState(Scope Scope, int Max, int Preferred, int Cap);
+/// <param name="HiddenEpoch">The epoch that gates this scope's ascension when it is not yet
+/// revealed (spec 4.3). Raising the scope reveals it. Null when revealed or when no epoch gates
+/// the scope (multiplayer, Blitz, modded characters).</param>
+/// <param name="RaiseLocked">True when the scope cannot be raised at all: Blitz while
+/// <c>BlitzEpoch</c> is hidden. The mod never reveals that epoch.</param>
+public sealed record ScopeState(
+    Scope Scope,
+    int Max,
+    int Preferred,
+    int Cap,
+    string? HiddenEpoch = null,
+    bool RaiseLocked = false)
+{
+    /// <summary>Highest max a request may ask for (spec 4.2).</summary>
+    public int Ceiling => RaiseLocked ? Max : Cap;
+}
 
 /// <summary>
 /// State of the Random character pseudo-entry. Its stored max is not a real track and is never
@@ -78,7 +93,7 @@ public sealed record Caps(int Character, int Multiplayer, int? Blitz)
     };
 }
 
-/// <summary>A front-end's request to lower one scope's max.</summary>
+/// <summary>A front-end's request for a new max on one scope, lower or higher (spec 4.2).</summary>
 public sealed record RelockRequest(Scope Scope, int NewMax);
 
 public enum RejectionReason
@@ -89,8 +104,12 @@ public enum RejectionReason
     /// <summary>The new max is below 0.</summary>
     Negative,
 
-    /// <summary>The new max is above the current max. Raising is out of scope.</summary>
-    AboveCurrentMax,
+    /// <summary>The new max is above the scope's cap.</summary>
+    AboveCap,
+
+    /// <summary>The new max is above the current max on a scope that cannot be raised yet
+    /// (Blitz while Blitz is locked).</summary>
+    RaiseLocked,
 
     /// <summary>The same scope was requested more than once; only the first request is used.</summary>
     Duplicate,
@@ -102,8 +121,20 @@ public sealed record Rejection(RelockRequest Request, RejectionReason Reason, st
 /// One scope's change. For the Random pseudo-entry, <see cref="OldMax"/> equals <see cref="NewMax"/>
 /// (its max is never touched) and only preferred moves.
 /// </summary>
-public sealed record Change(Scope Scope, int OldMax, int NewMax, int OldPreferred, int NewPreferred)
+/// <param name="RevealEpoch">Epoch the adapter must reveal with this change, so the game honours
+/// the raised max (spec 4.3). Null unless the change raises a gated scope above 0.</param>
+public sealed record Change(
+    Scope Scope,
+    int OldMax,
+    int NewMax,
+    int OldPreferred,
+    int NewPreferred,
+    string? RevealEpoch = null)
 {
+    public bool Raises => NewMax > OldMax;
+
+    public bool Lowers => NewMax < OldMax;
+
     public bool ChangesMax => OldMax != NewMax;
 
     public bool ChangesPreferred => OldPreferred != NewPreferred;

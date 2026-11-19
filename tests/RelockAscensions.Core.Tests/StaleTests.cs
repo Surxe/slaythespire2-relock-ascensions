@@ -45,6 +45,25 @@ public class StaleTests
     }
 
     [Fact]
+    public void Epoch_revealed_elsewhere_since_preview_is_stale()
+    {
+        var before = Snapshot(HiddenChar(Ironclad, 0, 0));
+        var plan = Planner.Plan(before, new[] { new RelockRequest(Scope.Character(Ironclad), 4) });
+
+        Assert.Empty(Planner.StaleChanges(before, plan));
+        Assert.Single(Planner.StaleChanges(Snapshot(Char(Ironclad, 0, 0)), plan));
+    }
+
+    [Fact]
+    public void Raise_above_a_new_ceiling_is_stale()
+    {
+        var before = Snapshot(Blitz(2, 2));
+        var plan = Planner.Plan(before, new[] { new RelockRequest(Scope.Blitz, 4) });
+
+        Assert.Single(Planner.StaleChanges(Snapshot(LockedBlitz(2, 2)), plan));
+    }
+
+    [Fact]
     public void Scope_gone_after_profile_switch_is_stale()
     {
         var before = Snapshot(Char(Ironclad, 10, 10), Blitz(5, 5));

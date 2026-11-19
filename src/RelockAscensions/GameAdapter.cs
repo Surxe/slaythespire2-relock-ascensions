@@ -18,7 +18,8 @@ internal static class GameAdapter
     [MethodImpl(MethodImplOptions.NoInlining)]
     public static ProgressSnapshot ReadSnapshot()
     {
-        var progress = SaveManager.Instance.Progress;
+        var save = SaveManager.Instance;
+        var progress = save.Progress;
         var cap = Compat.StandardCap;
         var randomId = ModelDb.GetId<RandomCharacter>().ToString();
         var rotatingId = ModelDb.GetId<RotatingCharacter>().ToString();
@@ -44,9 +45,13 @@ internal static class GameAdapter
                 random = new RandomState(id, stats.MaxAscension, stats.PreferredAscension);
                 continue;
             }
-            scopes.Add(new ScopeState(Scope.Character(id), stats.MaxAscension, stats.PreferredAscension, cap));
+            // Raising a gated character must also reveal its epoch, or the game ignores the max.
+            var epoch = AscensionEpochs.For(id);
+            var hidden = epoch is not null && !save.IsEpochRevealed(epoch) ? epoch : null;
+            scopes.Add(new ScopeState(Scope.Character(id), stats.MaxAscension, stats.PreferredAscension, cap, hidden));
         }
 
+        // Multiplayer has no epoch gate.
         scopes.Add(new ScopeState(Scope.Multiplayer,
             progress.MaxMultiplayerAscension, progress.PreferredMultiplayerAscension, cap));
 
@@ -55,7 +60,8 @@ internal static class GameAdapter
             scopes.Add(new ScopeState(Scope.Blitz,
                 (int)Compat.MaxBlitzGetter!.Invoke(progress, null)!,
                 (int)Compat.PreferredBlitzGetter!.Invoke(progress, null)!,
-                Compat.BlitzCap!.Value));
+                Compat.BlitzCap!.Value,
+                RaiseLocked: !save.IsEpochRevealed(AscensionEpochs.Blitz)));
         }
 
         return new ProgressSnapshot(scopes, random);
@@ -138,8 +144,9 @@ internal static class GameAdapter
     public static bool IsRunInProgress() => RunManager.Instance.IsInProgress;
 
     /// <summary>
-    /// Applies the plan to the loaded progress and saves it (spec 5.2). Callers must have
-    /// checked staleness first. On failure, in-memory values are restored and nothing is saved.
+    /// Applies the plan to the loaded progress and saves it (spec 5.2): max and preferred values,
+    /// then the epoch each raise must reveal. Callers must have checked staleness first. On
+    /// failure, in-memory values (epochs included) are restored and nothing is saved.
     /// </summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Apply(Plan plan)
@@ -152,6 +159,10 @@ internal static class GameAdapter
             foreach (var change in plan.Changes)
             {
                 ApplyChange(progress, change, undo);
+            }
+            foreach (var epoch in plan.Changes.Select(c => c.RevealEpoch).OfType<string>().Distinct())
+            {
+                RevealEpoch(save, progress, epoch, undo);
             }
             save.SaveProgressFile();
         }
@@ -207,6 +218,31 @@ internal static class GameAdapter
             default:
                 throw new InvalidOperationException($"Unknown scope kind {change.Scope.Kind}");
         }
+    }
+
+    /// <summary>
+    /// Reveals <paramref name="epochId"/> with <c>ObtainEpochOverride</c>, which creates the entry
+    /// when missing. Never <c>RevealEpoch</c>: it throws on a missing entry and sends a metric.
+    /// </summary>
+    private static void RevealEpoch(SaveManager save, ProgressState progress, string epochId, List<Action> undo)
+    {
+        var entry = progress.Epochs.FirstOrDefault(e => e.Id == epochId);
+        if (entry is null)
+        {
+            var list = Compat.EpochsField?.GetValue(progress) as List<SerializableEpoch>
+                ?? throw new InvalidOperationException("Cannot undo an epoch reveal on this build");
+            undo.Add(() => list.RemoveAll(e => e.Id == epochId));
+        }
+        else
+        {
+            var (state, date) = (entry.State, entry.ObtainDate);
+            undo.Add(() =>
+            {
+                save.ObtainEpochOverride(epochId, state);
+                entry.ObtainDate = date; // the override stamps a date the entry may not have had
+            });
+        }
+        save.ObtainEpochOverride(epochId, Compat.Revealed);
     }
 
     private static CharacterStats? FindCharacter(ProgressState progress, string id) =>

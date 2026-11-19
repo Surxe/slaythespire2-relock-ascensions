@@ -6,7 +6,8 @@ namespace RelockAscensions.Core;
 
 /// <summary>
 /// Builds plans from requests (manual relock, spec 4.3) or from history (recompute, spec 4.4).
-/// Pure: no game types, no I/O. Plans only ever lower a max.
+/// Pure: no game types, no I/O. Plans move a max either way, up to the scope's ceiling
+/// (<see cref="ScopeState.Ceiling"/>); a raise carries the epoch it must reveal.
 /// </summary>
 public static class Planner
 {
@@ -44,7 +45,8 @@ public static class Planner
             {
                 continue; // no-op request
             }
-            changes.Add(new Change(state.Scope, state.Max, newMax, state.Preferred, newPreferred));
+            var reveal = newMax > state.Max && newMax > 0 ? state.HiddenEpoch : null;
+            changes.Add(new Change(state.Scope, state.Max, newMax, state.Preferred, newPreferred, reveal));
         }
 
         var randomChange = ClampRandom(snapshot, changes);
@@ -57,8 +59,9 @@ public static class Planner
     }
 
     /// <summary>
-    /// Recompute from history: replay, then request <c>NewMax = evidence</c> for every scope whose
-    /// evidence is below its current max. Scopes with no evidence are left alone.
+    /// Recompute from history: replay, then request <c>NewMax = evidence</c> (clamped to the
+    /// scope's ceiling) for every scope where that differs from its current max, lower or higher.
+    /// Scopes with no evidence are left alone.
     /// </summary>
     public static RecomputeResult Recompute(ProgressSnapshot snapshot, IEnumerable<RunRecord> runs, Caps caps)
     {
@@ -79,9 +82,10 @@ public static class Planner
             {
                 continue; // no evidence: never report or apply 0
             }
-            if (result.Evidence < state.Max)
+            var target = Math.Min(result.Evidence, state.Ceiling);
+            if (target != state.Max)
             {
-                requests.Add(new RelockRequest(state.Scope, result.Evidence));
+                requests.Add(new RelockRequest(state.Scope, target));
             }
         }
 
@@ -89,8 +93,9 @@ public static class Planner
     }
 
     /// <summary>
-    /// Changes whose old values no longer match <paramref name="current"/> (spec 5.2). A plan with
-    /// any stale change must be discarded, not partially applied.
+    /// Changes whose old values no longer match <paramref name="current"/> (spec 5.2), whose epoch
+    /// to reveal no longer matches the scope's hidden epoch, or whose raise is now above the
+    /// scope's ceiling. A plan with any stale change must be discarded, not partially applied.
     /// </summary>
     public static IReadOnlyList<string> StaleChanges(ProgressSnapshot current, Plan plan)
     {
@@ -105,6 +110,16 @@ public static class Planner
             if (byScope.TryGetValue(c.Scope, out var s))
             {
                 (max, preferred) = (s.Max, s.Preferred);
+                if (c.ChangesMax && c.RevealEpoch != (c.Raises && c.NewMax > 0 ? s.HiddenEpoch : null))
+                {
+                    stale.Add($"{c.Scope}: epoch to reveal is now {s.HiddenEpoch ?? "none"}, preview had {c.RevealEpoch ?? "none"}");
+                    continue;
+                }
+                if (c.Raises && c.NewMax > s.Ceiling)
+                {
+                    stale.Add($"{c.Scope}: {c.NewMax} is now above the limit {s.Ceiling}");
+                    continue;
+                }
             }
             else if (current.Random is { } r && c.Scope == Scope.Character(r.CharacterId))
             {
@@ -143,10 +158,15 @@ public static class Planner
             return new Rejection(request, RejectionReason.Negative,
                 $"{request.Scope}: {request.NewMax} is below 0");
         }
-        if (request.NewMax > state.Max)
+        if (request.NewMax > state.Cap)
         {
-            return new Rejection(request, RejectionReason.AboveCurrentMax,
-                $"{request.Scope}: {request.NewMax} is above the current max {state.Max}; raising is not supported");
+            return new Rejection(request, RejectionReason.AboveCap,
+                $"{request.Scope}: {request.NewMax} is above the cap {state.Cap}");
+        }
+        if (request.NewMax > state.Max && state.RaiseLocked)
+        {
+            return new Rejection(request, RejectionReason.RaiseLocked,
+                $"{request.Scope}: cannot raise above {state.Max}; unlock {request.Scope} first");
         }
         return null;
     }

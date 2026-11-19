@@ -22,7 +22,7 @@ public sealed class RelockConsoleCmd : AbstractConsoleCmd
     public override string Args => "<target|state|set <scope> <max>|recompute|confirm|cancel>";
 
     public override string Description =>
-        "Lower ascension levels. 'set' and 'recompute' preview; 'confirm' writes the last preview.";
+        "Lower or raise ascension levels. 'set' and 'recompute' preview; 'confirm' writes the last preview.";
 
     public override bool IsNetworked => false;
 
@@ -83,7 +83,7 @@ public sealed class RelockConsoleCmd : AbstractConsoleCmd
     {
         if (args.Length != 3 || !int.TryParse(args[2], out var newMax))
         {
-            return Fail("Usage: relock set <scope> <max>   e.g. relock set ironclad 5, relock set mp 0");
+            return Fail("Usage: relock set <scope> <max>   e.g. relock set ironclad 5, relock set mp 0, relock set silent 10");
         }
         if (RelockApi.ReadState() is not { } state)
         {
@@ -94,7 +94,7 @@ public sealed class RelockConsoleCmd : AbstractConsoleCmd
             if (ScopeNames.MatchCharacterId(args[1], RelockApi.KnownCharacterIds()) is { } unplayed)
             {
                 // The game only adds a character's stats the first time it is played.
-                return Fail($"{unplayed} has no ascension progress on this profile yet (max 0), so there is nothing to lower.");
+                return Fail($"{unplayed} has no ascension progress on this profile yet; select it once in character select first.");
             }
             return Fail($"Unknown scope '{args[1]}'. Try: {string.Join(", ", ScopeNames.ShortNames(state.Scopes))}");
         }

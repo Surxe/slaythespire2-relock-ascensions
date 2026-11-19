@@ -1,27 +1,31 @@
 # Spec: Relock Ascensions (STS2 mod)
 
-Status: core, adapter, a main-menu front-end and a dev-console front-end are implemented (see
-the README). Based on
-[research.md](research.md). This spec defines the logic and the seams that let further UIs be
-added without touching it. Section 10 records how each open decision was resolved.
+Status: core, adapter (relocking and unlocking), a main-menu front-end and a dev-console
+front-end are implemented (see the README). Based on [research.md](research.md). This spec
+defines the logic and the seams that let further UIs be added without touching it. Section 10
+records how each open decision was resolved.
 
 ## 1. Goal
 
 Let the player lower ascension levels that were unlocked earlier by other means (cheat or
-unlock mods, or progress from another device), per scope, on the current beta branch.
+unlock mods, or progress from another device), per scope, on the current beta branch. For
+convenience the mod also raises them; relocking stays the selling point and the name.
 
 Two ways to set a value:
 
-- **Manual relock:** the player chooses a new max for one scope.
+- **Manual relock:** the player chooses a new max for one scope, from 0 to its cap.
 - **Recompute from history:** the mod proposes the max the local run history can prove,
   for every scope at once.
 
-Both only ever **lower** a max. Neither raises one, and neither touches anything at load.
+Both move a max **either way**, up to the scope's ceiling (4.2). Neither touches anything at
+load.
 
 ## 2. Non-goals
 
-- Raising ascension, or granting unlocks of any other kind (that is Unlock the Spire's job).
-- Changing epochs, unlocks, tutorials, achievements or cards.
+- Unlocks other than the ascension epoch (that is Unlock the Spire's job). Raising a vanilla
+  character reveals its ascension epoch (4.3), which the game needs to honour the max; the mod
+  never reveals any other epoch (`BlitzEpoch` included) and never hides one.
+- Changing tutorials, achievements or cards.
 - Editing vanilla or modded save folders by path. All access goes through the game's save
   manager (see section 6).
 - Dread and Daily, which have no ascension to relock (see section 3).
@@ -58,11 +62,18 @@ The core is plain C# with no references to the game or Godot. It is unit-tested.
 ```
 enum ScopeKind { Character, Multiplayer, Blitz }
 record Scope(ScopeKind Kind, string? CharacterId)     // CharacterId null unless Character
-record ScopeState(Scope Scope, int Max, int Preferred, int Cap)
+record ScopeState(Scope Scope, int Max, int Preferred, int Cap,
+                  string? HiddenEpoch = null, bool RaiseLocked = false)
+    Ceiling => RaiseLocked ? Max : Cap
 enum RunMode { Standard, Daily, Dread, Blitz, Unknown }
 record RunRecord(long StartTime, RunMode Mode, bool IsCustom, bool Win, int Ascension,
                  IReadOnlyList<string> Characters)
 ```
+
+`HiddenEpoch` is the epoch that gates the scope's ascension when it is not yet revealed
+(vanilla characters only; `AscensionEpochs` maps each to its `<CHAR>4_EPOCH`). `RaiseLocked` is
+true for Blitz while `BlitzEpoch` is hidden: the Blitz buttons are disabled then, and the mod
+does not unlock Blitz.
 
 `RunRecord` is a plain copy of the history file's fields, built by the adapter. The core
 classifies each run (it is tested; the adapter is not):
@@ -76,8 +87,9 @@ classifies each run (it is tested; the adapter is not):
 
 ### 4.2 Validation rules
 
-- A new max must satisfy `0 <= newMax <= Max` (current). Requests above the current max are
-  rejected, not clamped. Raising is out of scope.
+- A new max must satisfy `0 <= newMax <= Ceiling`. Requests above the cap are rejected
+  (`AboveCap`), not clamped; raising a `RaiseLocked` scope is rejected (`RaiseLocked`, "unlock
+  Blitz first"). Lowering a `RaiseLocked` scope is allowed.
 - A new max may be 0 (full relock).
 - Blitz and Multiplayer use the same rules with their own caps.
 
@@ -86,11 +98,18 @@ classifies each run (it is tested; the adapter is not):
 `Plan(states, requests) -> Plan`, where `Plan` is:
 
 ```
-record Change(Scope Scope, int OldMax, int NewMax, int OldPreferred, int NewPreferred)
+record Change(Scope Scope, int OldMax, int NewMax, int OldPreferred, int NewPreferred,
+              string? RevealEpoch = null)
 record Plan(IReadOnlyList<Change> Changes, IReadOnlyList<Rejection> Rejections)
 ```
 
-Each change sets `NewMax`, then sets `NewPreferred = min(OldPreferred, NewMax)`.
+Each change sets `NewMax`, then sets `NewPreferred = min(OldPreferred, NewMax)`, so a raise
+leaves preferred unchanged.
+
+A change that raises a scope with a `HiddenEpoch` to a new max above 0 carries
+`RevealEpoch = HiddenEpoch`. The game ignores a character's stored max until that epoch is
+revealed; revealing it also unlocks the character's three potions (research, "Ascension
+epochs"). The preview says so. Lowering never touches epochs.
 
 ### 4.4 Recompute from history
 
@@ -105,8 +124,8 @@ This gives a **lower bound** per scope, or **no evidence** when the scope has no
 Plan rule, per scope:
 
 - **No evidence:** no change. Never report 0 for a scope with no data.
-- **Evidence >= current max:** no change.
-- **Evidence < current max:** propose `NewMax = evidence`, with preferred clamped as in 4.3.
+- **Otherwise:** propose `NewMax = min(evidence, Ceiling)` when that differs from the current
+  max, lower or higher, with preferred and epochs as in 4.3.
 
 Replay is a pure function of `(runs, caps)`, so the same input always produces the same plan.
 
@@ -124,6 +143,8 @@ The only layer that touches the game. Everything here is thin mapping plus savin
 
 - Current state: `SaveManager.Instance.Progress` (`ProgressState`). Scopes come from
   `CharacterStats` and the multiplayer/Blitz properties.
+- Epochs: `SaveManager.IsEpochRevealed(id)` sets each vanilla character's `HiddenEpoch` and
+  Blitz's `RaiseLocked` (`BLITZ_EPOCH`). Multiplayer has no gate.
 - Blitz is read and written through reflection (`AccessTools.PropertyGetter/Setter` on
   `ProgressState`), so the mod still loads on builds without Blitz. If the property is absent,
   the Blitz scope is omitted from the plan.
@@ -133,10 +154,19 @@ The only layer that touches the game. Everything here is thin mapping plus savin
 
 ### 5.2 Writing
 
-1. Re-read the current state. Discard any plan whose `OldMax` no longer matches (the save
-   changed since the preview was built).
-2. Apply the changes to `ProgressState`.
-3. Call `SaveManager.Instance.SaveProgressFile()`.
+1. Re-read the current state. Discard any plan whose `OldMax` or `OldPreferred` no longer
+   matches, whose `RevealEpoch` no longer matches the scope's `HiddenEpoch` (an epoch was
+   revealed elsewhere), or whose raise is now above the ceiling (the save changed since the
+   preview was built).
+2. Apply the max and preferred changes to `ProgressState`.
+3. Reveal each `RevealEpoch` with `SaveManager.ObtainEpochOverride(id, Revealed)`, which
+   creates the entry when missing. Never `RevealEpoch`: it throws on a missing entry and sends
+   a metric. `EpochState.Revealed` is resolved by name.
+4. Call `SaveManager.Instance.SaveProgressFile()`.
+
+On failure every in-memory change is undone and nothing is saved. An epoch's prior state (and
+obtain date) is put back with `ObtainEpochOverride`; an entry the mod created is removed from
+`ProgressState._epochs` by reflection, since the game has no public way to delete one.
 
 The adapter never builds file paths and never chooses between vanilla and modded. Whatever
 the game has loaded is what gets written.
@@ -208,11 +238,16 @@ the real profile their saved value is 0, on an unlocked fork they stay at the ca
 3. A recompute on the fork profile, built from a copy of `profile1` history, reproduces the
    golden table in section 8 (scopes with no evidence keep their unlocked value).
 4. A scope with no eligible runs is left unchanged.
-5. A recompute never raises any value.
+5. A recompute raises a scope to its evidence when history earned more than is unlocked
+   (clamped to the ceiling), and never touches a scope with no eligible runs.
 6. Cancelling the preview writes nothing.
 7. The mod does not crash, and writes nothing, when a required member is missing.
 8. The mod works whether SavesMerger is enabled or not, and writes to the same profile the
    game shows.
+9. A raise changes only its scope (plus preferred clamping elsewhere) and, for a vanilla
+   character whose ascension epoch was hidden, that one epoch, which becomes revealed.
+10. A Blitz raise is refused while Blitz is locked (`BlitzEpoch` hidden); lowering still works.
+11. Relocking never hides an epoch: a character relocked to 0 keeps its epoch revealed.
 
 ## 10. Decisions
 
@@ -231,9 +266,9 @@ Resolved (implemented defaults; revisit if testing shows otherwise):
 5. **Random preferred:** clamped to the highest Character max after the plan.
 6. **Multiplayer vs. character maxes:** independent scopes, as the game treats them.
 7. **UI route:** both. The dev console (`relock`) covers manual and recompute. The main menu
-   gets a **relock screen**, an editor that combines the two routes. Every scope starts at the
-   level its run history earned (the recompute suggestion, `RelockEditor`), the player moves
-   any of them between 0 and the unlocked max, and the edited values go through the manual
+   gets a **relock screen**, an editor that combines the two routes. Every scope starts at its
+   unlocked level (`RelockEditor`), the player moves any of them between 0 and the ceiling or
+   takes the run-history values (item 10), and the edited values go through the manual
    planner. Save shows the changes in the game's confirmation popup and writes on confirm.
    - Entry: a copy of the game's own menu button, added to the game's button column from a
      scene-tree signal before the menu runs `_Ready`. No Harmony patch is needed. It matches
@@ -255,9 +290,42 @@ Resolved (implemented defaults; revisit if testing shows otherwise):
      main menu (when every mod is loaded, so load order does not matter) only if BaseLib is in
      the process. Its properties forward to `Settings`; BaseLib loads and saves them in
      `mod_configs/RelockAscensions.cfg`. Without BaseLib the setting keeps its default.
-   - Raising (unlocking) is a separate change. It would let the editor go up to the cap and
-     lift the planner's "never above current max" rule (4.2), and it needs the in-game checks
-     listed under item 9.
+   - Raising (unlocking): item 10.
+10. **Unlocking.** The mod also raises ascensions; relocking stays the selling point and the
+    name. Background: research, "Ascension epochs (unlocking)".
+    - **Range:** every scope goes from 0 to its cap (modded characters: 10). The planner
+      rejects values above the cap (`AboveCap`); a change can go either way.
+    - **Preferred:** unchanged when a max goes up; lowering still clamps it (4.3).
+    - **Epochs:** raising a vanilla character above 0 also reveals its ascension epoch
+      (`<CHAR>4_EPOCH`) through `ObtainEpochOverride(id, Revealed)` when it is not revealed.
+      That epoch also unlocks the character's three potions; accepted, and stated in the
+      confirm popup and the player-facing docs. Modded characters have no epoch gate.
+      Relocking never hides an epoch. The staleness check covers epoch state.
+    - **Blitz:** raisable only when `BlitzEpoch` is revealed (Blitz mode unlocked). The mod
+      never reveals `BlitzEpoch`. While Blitz is locked (`RaiseLocked`) the screen hides its
+      row, as the game hides a character never selected; the planner still allows lowering it
+      (console). The player-facing docs say Blitz must be unlocked first.
+    - **Recompute can raise:** the plan proposes `NewMax = evidence` (within the ceiling)
+      whenever it differs from the current max (no evidence: still no change). Acceptance 5 is
+      reversed. The console's `relock recompute` follows.
+    - **Console:** `relock set <scope> <max>` accepts 0 to the cap.
+    - **Screen:** rows open at the current unlocked level. **Reset** returns every row there
+      (discards edits). A **Use Run History** button sets each row to what its runs earned (up
+      or down, within the ceiling; rows with no runs stay), with help text in the right-hand
+      info panel while it is hovered or focused. A row's name is green above its unlocked
+      level and gold below. The pending line and confirm popup are direction-neutral; the popup
+      groups raises ("Up") and relocks ("Down"), with one line naming every character whose
+      epoch the save will reveal. Reset, Use Run History and Save sit centered in the
+      list box, pinned to its bottom.
+      The right-hand panel notes that Blitz and every character except Ironclad must be
+      unlocked in the game before their Ascension can be raised, and that a character appears
+      once selected in character select and Blitz once unlocked. For the hovered or focused row
+      it adds what the row does not show: the run count behind "earned" and why it can be too
+      low, whether raising unlocks the character's Ascension and potions, and what Save would
+      change (max, and the selected level when it drops). No "earned more than unlocked" nudge.
+    - **Player-facing docs (later):** FAQ "Can I unlock ascensions too? A: Yes! While the
+      selling point is relocking ascensions and many other mods feature unlocking, this mod
+      does too for convenience.", plus the potion side effect and the Blitz prerequisite.
 
 Still open:
 
@@ -265,10 +333,15 @@ Still open:
    and version placeholders, and how to publish (Workshop or manual).
 9. **Remaining in-game checks.** The relock screen (button placement next to Unlock the
    Spire, screen layout and row fit, mouse and controller paging, Reset, confirm popup, apply
-   and refresh, back button), acceptance 3 (recompute on an unlocked fork, using the
+   and refresh, back button), unlocking (item 10: arrows up to the cap, 5 for Blitz, and
+   stopping at the current level while Blitz is locked; row colors; the Use Run History
+   button's placement and its help on hover and controller focus; the grouped popup with its
+   epoch line; after saving, character select shows the raised max for a character whose epoch
+   was hidden and its potions are unlocked on the timeline; relocking it back to 0 leaves the
+   epoch revealed; `relock set ironclad 10` + `relock confirm`; `relock recompute` proposing
+   raises; acceptance 9 to 11), acceptance 3 (recompute on an unlocked fork, using the
    running-game fork procedure in research), refusal of `relock confirm` during a run, and
    acceptance 8 (SavesMerger off: the target should read `profileN (modded saves)`).
-
 ## 11. Build and deploy (proposed)
 
 - Solution with the core as a class library (`net9.0` or `net10.0`, whichever the game

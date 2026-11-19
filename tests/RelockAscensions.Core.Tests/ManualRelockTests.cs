@@ -35,13 +35,69 @@ public class ManualRelockTests
     }
 
     [Fact]
-    public void Raising_is_rejected_not_clamped()
+    public void Raise_up_to_the_cap_keeps_preferred()
     {
-        var snap = Snapshot(Char(Defect, 4, 4));
-        var plan = Planner.Plan(snap, new[] { new RelockRequest(Scope.Character(Defect), 6) });
+        var snap = Snapshot(Char(Defect, 4, 2));
+        var plan = Planner.Plan(snap, new[] { new RelockRequest(Scope.Character(Defect), 10) });
+
+        var change = Assert.Single(plan.Changes);
+        Assert.Equal(new Change(Scope.Character(Defect), 4, 10, 2, 2), change);
+        Assert.True(change.Raises);
+        Assert.False(change.Lowers);
+        Assert.Empty(plan.Rejections);
+    }
+
+    [Fact]
+    public void Above_the_cap_is_rejected_not_clamped()
+    {
+        var snap = Snapshot(Char(Defect, 4, 4), Blitz(2, 2));
+        var plan = Planner.Plan(snap, new[]
+        {
+            new RelockRequest(Scope.Character(Defect), 11),
+            new RelockRequest(Scope.Blitz, 6),
+        });
 
         Assert.Empty(plan.Changes);
-        Assert.Equal(RejectionReason.AboveCurrentMax, Assert.Single(plan.Rejections).Reason);
+        Assert.All(plan.Rejections, r => Assert.Equal(RejectionReason.AboveCap, r.Reason));
+        Assert.Equal(2, plan.Rejections.Count);
+    }
+
+    [Fact]
+    public void Raising_locked_blitz_is_rejected_but_lowering_it_is_allowed()
+    {
+        var snap = Snapshot(LockedBlitz(2, 2));
+
+        var raise = Planner.Plan(snap, new[] { new RelockRequest(Scope.Blitz, 3) });
+        Assert.Empty(raise.Changes);
+        Assert.Equal(RejectionReason.RaiseLocked, Assert.Single(raise.Rejections).Reason);
+
+        var lower = Planner.Plan(snap, new[] { new RelockRequest(Scope.Blitz, 1) });
+        Assert.Equal(new Change(Scope.Blitz, 2, 1, 2, 1), Assert.Single(lower.Changes));
+    }
+
+    [Fact]
+    public void Raise_reveals_the_hidden_epoch()
+    {
+        var snap = Snapshot(HiddenChar(Ironclad, 0, 0));
+        var plan = Planner.Plan(snap, new[] { new RelockRequest(Scope.Character(Ironclad), 5) });
+
+        Assert.Equal("IRONCLAD4_EPOCH", Assert.Single(plan.Changes).RevealEpoch);
+    }
+
+    [Fact]
+    public void No_epoch_reveal_when_lowering_revealed_or_ungated()
+    {
+        var snap = Snapshot(HiddenChar(Ironclad, 5, 5), Char(Silent, 3, 3), Char(Modded, 0, 0), Mp(0, 0));
+        var plan = Planner.Plan(snap, new[]
+        {
+            new RelockRequest(Scope.Character(Ironclad), 2), // lowering
+            new RelockRequest(Scope.Character(Silent), 8), // epoch already revealed
+            new RelockRequest(Scope.Character(Modded), 4), // no gate
+            new RelockRequest(Scope.Multiplayer, 10), // no gate
+        });
+
+        Assert.Equal(4, plan.Changes.Count);
+        Assert.All(plan.Changes, c => Assert.Null(c.RevealEpoch));
     }
 
     [Fact]

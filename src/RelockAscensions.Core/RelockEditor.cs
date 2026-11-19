@@ -7,23 +7,38 @@ namespace RelockAscensions.Core;
 /// <summary>
 /// One editable scope in a front-end's relock editor.
 /// </summary>
-/// <param name="Unlocked">The scope's max in the loaded save.</param>
+/// <param name="Unlocked">The scope's max in the loaded save. The editor starts here.</param>
 /// <param name="Earned">The level the run history proves (spec 4.4), or null with no eligible runs.</param>
 /// <param name="Runs">Eligible runs behind <paramref name="Earned"/>.</param>
-/// <param name="Max">Highest value the editor offers. Equal to <paramref name="Unlocked"/>: the
-/// planner never raises (spec 4.2).</param>
-public sealed record EditorRow(Scope Scope, int Unlocked, int? Earned, int Runs, int Max)
+/// <param name="Max">Highest value the editor offers: the scope's ceiling (spec 4.2).</param>
+/// <param name="RevealsEpoch">Raising this scope also reveals its ascension epoch (and with it the
+/// character's potions).</param>
+/// <param name="Preferred">The scope's selected level in the loaded save (the level character
+/// select starts on).</param>
+public sealed record EditorRow(
+    Scope Scope,
+    int Unlocked,
+    int? Earned,
+    int Runs,
+    int Max,
+    bool RevealsEpoch = false,
+    int Preferred = 0)
 {
+    /// <summary>The selected level after saving <paramref name="value"/> (spec 4.3).</summary>
+    public int PreferredAfter(int value) => Math.Min(Preferred, value);
+
     /// <summary>
-    /// Where the editor starts: what the runs earned, never above what is unlocked; the unlocked
-    /// value when there are no runs (spec 4.4, "no evidence: no change").
+    /// What the run history earned, within what the editor offers; the unlocked value when there
+    /// are no runs (spec 4.4, "no evidence: no change").
     /// </summary>
-    public int Suggested => Earned is { } earned ? Math.Min(earned, Unlocked) : Unlocked;
+    public int FromHistory => Earned is { } earned ? Math.Min(earned, Max) : Unlocked;
 }
 
 /// <summary>
-/// Pure model behind the relock editor: rows start at the recompute suggestion, the player moves
-/// any of them, and the edited values become ordinary manual-relock requests.
+/// Pure model behind the relock editor: rows start at what is unlocked, the player moves any of
+/// them (or takes the run-history values), and the edited values become ordinary manual-relock
+/// requests. A scope that cannot be raised yet (Blitz before Blitz is unlocked) gets no row, the
+/// same as a character the player has never selected: the game hides both.
 /// </summary>
 public static class RelockEditor
 {
@@ -33,10 +48,12 @@ public static class RelockEditor
         ArgumentNullException.ThrowIfNull(evidence);
         var byScope = evidence.ToDictionary(e => e.Scope);
         return snapshot.Scopes
+            .Where(s => !s.RaiseLocked)
             .Select(s =>
             {
                 byScope.TryGetValue(s.Scope, out var e);
-                return new EditorRow(s.Scope, s.Max, e?.Evidence, e?.Runs ?? 0, s.Max);
+                return new EditorRow(s.Scope, s.Max, e?.Evidence, e?.Runs ?? 0, s.Ceiling,
+                    s.HiddenEpoch is not null, s.Preferred);
             })
             .ToList();
     }
