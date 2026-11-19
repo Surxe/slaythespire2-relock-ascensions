@@ -48,8 +48,18 @@ public class GoldenReplayTests
 
         var result = Planner.Recompute(snapshot, runs, new Caps(10, 10, 5));
 
-        // The profile is a known-good baseline: replay reproduces it, so nothing changes.
-        Assert.True(result.Plan.IsEmpty, PlanFormatter.Format(result.Plan));
+        // Recompute moves every scope with runs to its evidence, either way; scopes without runs
+        // keep their saved max.
+        var after = snapshot.Scopes.ToDictionary(s => s.Scope, s => s.Max);
+        foreach (var c in result.Plan.Changes.Where(c => c.Scope.CharacterId != Random))
+        {
+            after[c.Scope] = c.NewMax;
+        }
+        foreach (var e in result.Evidence)
+        {
+            var expected = e.Evidence ?? snapshot.Scopes.Single(s => s.Scope == e.Scope).Max;
+            Assert.Equal((e.Scope, expected), (e.Scope, after[e.Scope]));
+        }
         AssertGolden(result.Evidence);
     }
 

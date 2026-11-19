@@ -25,6 +25,23 @@ public class PlanFormatterTests
     }
 
     [Fact]
+    public void Raise_that_reveals_an_epoch_says_so()
+    {
+        var snap = Snapshot(HiddenChar(Fool, 0, 0), Char(Ironclad, 2, 2));
+        var plan = Planner.Plan(snap, new[]
+        {
+            new RelockRequest(Scope.Character(Fool), 3),
+            new RelockRequest(Scope.Character(Ironclad), 4),
+        });
+
+        Assert.Equal(new[]
+        {
+            "CHARACTER.FOOL: max 0 -> 3, reveals FOOL4_EPOCH (ascension + potions)",
+            "CHARACTER.IRONCLAD: max 2 -> 4",
+        }, PlanFormatter.FormatChanges(plan));
+    }
+
+    [Fact]
     public void Empty_plan()
     {
         Assert.Equal("No changes.", PlanFormatter.Format(Plan.Empty));

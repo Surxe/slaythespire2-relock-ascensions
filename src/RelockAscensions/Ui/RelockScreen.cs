@@ -18,9 +18,9 @@ public partial class RelockRow : Control
 
 /// <summary>
 /// The relock editor, a main-menu submenu built on the game's Mods screen. Each scope is a Mods
-/// row holding the settings paginator. It opens at the levels your run history earned
-/// (<see cref="RelockEditor"/>), the player moves any of them, and Save shows the game's
-/// confirmation popup before anything is written. Talks to <see cref="RelockApi"/> only (spec 7).
+/// row holding the settings paginator. It opens at what is unlocked (<see cref="RelockEditor"/>),
+/// the player moves any of them up to the cap or takes the run-history values, and Save shows the
+/// game's confirmation popup before anything is written. Talks to <see cref="RelockApi"/> only (spec 7).
 /// </summary>
 public partial class RelockScreen : NSubmenu
 {
@@ -53,10 +53,12 @@ public partial class RelockScreen : NSubmenu
     private MegaRichTextLabel _pending = null!;
     private NButton _saveButton = null!;
     private NButton _resetButton = null!;
+    private NButton _historyButton = null!;
 
     private EditorState? _state;
     private Row? _focused;
     private bool _busy;
+    private bool _historyHelp; // the pointer or focus is on Use Run History
 
     protected override Control? InitialFocusedControl => _rows.FirstOrDefault()?.Paginator;
 
@@ -93,12 +95,21 @@ public partial class RelockScreen : NSubmenu
         _pending.AddThemeColorOverride(ThemeColorDefault, StsColors.gold);
         GetNode<MegaRichTextLabel>("%InstalledModsTitle").SetTextAutoSize(Strings.Text("SCREEN.title"));
 
-        _saveButton = LiftToScreen(GetNode<NButton>("%GetModsButton"));
-        _resetButton = LiftToScreen(GetNode<NButton>("%MakeModsButton"));
+        _saveButton = GetNode<NButton>("%GetModsButton");
+        _resetButton = GetNode<NButton>("%MakeModsButton");
+        _historyButton = CopyOf(_resetButton, "UseRunHistoryButton");
+        AddButtonBar(_resetButton, _historyButton, _saveButton);
         _saveButton.GetNode<MegaLabel>("Visuals/Label").SetTextAutoSize(Strings.Text("SCREEN.save"));
         _resetButton.GetNode<MegaLabel>("Visuals/Label").SetTextAutoSize(Strings.Text("SCREEN.reset"));
+        _historyButton.GetNode<MegaLabel>("Visuals/Label").SetTextAutoSize(Strings.Text("SCREEN.history"));
         _saveButton.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(_ => OnSavePressed()));
-        _resetButton.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(_ => ResetToSuggested()));
+        _resetButton.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(_ => SetAll(r => r.Unlocked, "Reset")));
+        _historyButton.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(_ => SetAll(r => r.FromHistory, "Use Run History")));
+        _historyButton.Connect(Control.SignalName.MouseEntered, Callable.From(() => ShowHistoryHelp(true)));
+        _historyButton.Connect(Control.SignalName.MouseExited, Callable.From(() => ShowHistoryHelp(false)));
+        _historyButton.Connect(Control.SignalName.FocusEntered, Callable.From(() => ShowHistoryHelp(true)));
+        _historyButton.Connect(Control.SignalName.FocusExited, Callable.From(() => ShowHistoryHelp(false)));
+        LinkFocus(_resetButton, _historyButton, _saveButton);
 
         ConnectSignals(); // NSubmenu: back button pops the stack
     }
@@ -117,7 +128,7 @@ public partial class RelockScreen : NSubmenu
         _focused = null;
     }
 
-    /// <summary>Reads the save and history again and rebuilds every row at its suggestion.</summary>
+    /// <summary>Reads the save and history again and rebuilds every row at what is unlocked.</summary>
     private void Reload()
     {
         RemoveAllChildren(_rowList);
@@ -132,6 +143,7 @@ public partial class RelockScreen : NSubmenu
             _pending.Visible = false;
             _saveButton.Disable();
             _resetButton.Disable();
+            _historyButton.Disable();
             return;
         }
 
@@ -183,7 +195,7 @@ public partial class RelockScreen : NSubmenu
         detail.SetTextAutoSize(model.Earned is { } earned
             ? Strings.Text("SCREEN.detail", ("unlocked", model.Unlocked), ("earned", earned))
             : Strings.Text("SCREEN.detailNoRuns", ("unlocked", model.Unlocked)));
-        paginator.Setup(model.Max, model.Suggested);
+        paginator.Setup(model.Max, model.Unlocked);
 
         var row = new Row(model, highlight, title, detail, paginator);
         paginator.ValueChanged += _ => Refresh();
@@ -212,7 +224,10 @@ public partial class RelockScreen : NSubmenu
     {
         foreach (var row in _rows)
         {
-            row.Title.Modulate = row.Paginator.Value != row.Model.Unlocked ? StsColors.gold : Colors.White;
+            var value = row.Paginator.Value;
+            row.Title.Modulate = value > row.Model.Unlocked ? StsColors.green
+                : value < row.Model.Unlocked ? StsColors.gold
+                : Colors.White;
         }
         var count = Requests().Count;
         _pending.Visible = count > 0;
@@ -221,7 +236,8 @@ public partial class RelockScreen : NSubmenu
             _pending.SetTextAutoSize(Strings.Text("SCREEN.pending", ("count", count)));
         }
         SetEnabled(_saveButton, count > 0);
-        SetEnabled(_resetButton, _rows.Any(r => r.Paginator.Value != r.Model.Suggested));
+        SetEnabled(_resetButton, _rows.Any(r => r.Paginator.Value != r.Model.Unlocked));
+        SetEnabled(_historyButton, _rows.Any(r => r.Paginator.Value != r.Model.FromHistory));
         RefreshInfo();
     }
 
@@ -232,14 +248,26 @@ public partial class RelockScreen : NSubmenu
             return;
         }
         var text = Strings.Text("SCREEN.intro", ("profile", Strings.ProfileName(state.Target)));
-        if (_focused is { } row)
+        if (_historyHelp)
+        {
+            text += "\n\n" + Strings.Text("SCREEN.historyHelp");
+        }
+        else if (_focused is { } row)
         {
             var m = row.Model;
+            var scope = Strings.ScopeName(m.Scope);
             text += "\n\n" + (m.Earned is { } earned
-                ? Strings.Text("SCREEN.focus", ("scope", Strings.ScopeName(m.Scope)),
+                ? Strings.Text("SCREEN.focus", ("scope", scope),
                     ("unlocked", m.Unlocked), ("earned", earned), ("runs", m.Runs))
-                : Strings.Text("SCREEN.focusNoRuns", ("scope", Strings.ScopeName(m.Scope)),
-                    ("unlocked", m.Unlocked)));
+                : Strings.Text("SCREEN.focusNoRuns", ("scope", scope), ("unlocked", m.Unlocked)));
+            if (m.RevealsEpoch)
+            {
+                text += "\n" + Strings.Text("SCREEN.focusRevealsEpoch", ("scope", scope));
+            }
+            if (m.RaiseLocked)
+            {
+                text += "\n" + Strings.Text("SCREEN.focusBlitzLocked", ("scope", scope));
+            }
         }
         if (state.HistoryFilesFailed > 0)
         {
@@ -248,14 +276,23 @@ public partial class RelockScreen : NSubmenu
         _infoBody.Text = text;
     }
 
-    private void ResetToSuggested()
+    /// <summary>Sets every row to <paramref name="value"/> (Reset: unlocked; Use Run History: earned).</summary>
+    private void SetAll(Func<EditorRow, int> value, string button)
     {
-        Log.Info("Reset pressed");
+        Log.Info($"{button} pressed");
         foreach (var row in _rows)
         {
-            row.Paginator.SetIndex(row.Model.Suggested);
+            row.Paginator.SetIndex(value(row.Model));
         }
         Refresh();
+    }
+
+    private void ShowHistoryHelp(bool show)
+    {
+        // Leaving by mouse while the button keeps controller focus still shows the row text;
+        // the next focus or hover brings the help back.
+        _historyHelp = show;
+        RefreshInfo();
     }
 
     private void OnSavePressed()
@@ -332,19 +369,73 @@ public partial class RelockScreen : NSubmenu
     }
 
     /// <summary>
-    /// In the Mods scene the two buttons sit above their bordered panel, outside its rect, and get
-    /// no hover or clicks there in game. Move them to the screen root at the same spot.
+    /// Moves the buttons into the bordered list, left-justified in one line pinned to its bottom,
+    /// so they stay put whatever the number of rows; the scroll area ends above them. In the Mods
+    /// scene they sit above the list, where the title needs the room (and they get no hover or
+    /// clicks there in game). Use Run History is wider for its longer label.
     /// </summary>
-    private NButton LiftToScreen(NButton button)
+    private void AddButtonBar(params NButton[] buttons)
     {
-        var position = button.GlobalPosition;
-        var size = button.Size;
-        button.GetParent().RemoveChild(button);
-        AddChild(button);
-        button.SetAnchorsPreset(LayoutPreset.TopLeft);
-        button.GlobalPosition = position;
-        button.Size = size;
-        return button;
+        const int gap = 12;
+        const float wideFactor = 1.6f;
+        var size = _resetButton.Size;
+        var height = size.Y + 2 * gap;
+
+        var margin = new MarginContainer { Name = "RelockButtons" };
+        margin.AddThemeConstantOverride("margin_left", (int)RowMargin);
+        margin.AddThemeConstantOverride("margin_top", gap);
+        margin.AddThemeConstantOverride("margin_bottom", gap);
+        var bar = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Begin };
+        bar.AddThemeConstantOverride("separation", gap);
+        margin.AddChild(bar);
+        foreach (var button in buttons)
+        {
+            button.GetParent()?.RemoveChild(button);
+            button.CustomMinimumSize = button == _historyButton ? new Vector2(size.X * wideFactor, size.Y) : size;
+            button.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
+            button.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+            bar.AddChild(button);
+        }
+
+        var panel = _scroll.GetParent<Control>();
+        if (panel is Container)
+        {
+            // A layout container places children itself: the bar goes right after the list.
+            margin.SizeFlagsVertical = SizeFlags.ShrinkEnd;
+            panel.AddChild(margin);
+            panel.MoveChild(margin, _scroll.GetIndex() + 1);
+            return;
+        }
+        panel.AddChild(margin);
+        margin.SetAnchorsAndOffsetsPreset(LayoutPreset.BottomWide);
+        margin.GrowVertical = GrowDirection.Begin;
+        margin.OffsetTop = -height;
+        _scroll.OffsetBottom -= height; // rows scroll above the bar, never under it
+    }
+
+    /// <summary>
+    /// A copy of a scene button, without signal connections: the game's button script connects
+    /// its own in <c>_Ready</c>, and ours are added by the caller.
+    /// </summary>
+    private static NButton CopyOf(NButton button, string name)
+    {
+        var flags = (int)(DuplicateFlags.Groups | DuplicateFlags.Scripts | DuplicateFlags.UseInstantiation);
+        var copy = (NButton)button.Duplicate(flags);
+        copy.Name = name;
+        return copy;
+    }
+
+    /// <summary>Left/right controller focus between the buttons, in the order given (left to right).</summary>
+    private static void LinkFocus(params NButton[] buttons)
+    {
+        var ordered = buttons;
+        for (var i = 0; i < ordered.Length; i++)
+        {
+            var left = ordered[i == 0 ? ordered.Length - 1 : i - 1];
+            var right = ordered[(i + 1) % ordered.Length];
+            ordered[i].FocusNeighborLeft = ordered[i].GetPathTo(left);
+            ordered[i].FocusNeighborRight = ordered[i].GetPathTo(right);
+        }
     }
 
     private static void RemoveAllChildren(Node parent)

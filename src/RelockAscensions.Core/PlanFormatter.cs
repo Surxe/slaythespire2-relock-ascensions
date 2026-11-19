@@ -22,6 +22,7 @@ public static class PlanFormatter
     /// <c>Ironclad: max 10 -> 5 (selected level 10 -> 5)</c>. "Selected level" is the game's
     /// preferred ascension: the level character select starts on.
     /// </summary>
+    /// A raise that reveals an epoch ends with <c>, reveals IRONCLAD4_EPOCH (ascension + potions)</c>.
     public static string FormatChange(Change c)
     {
         var selected = $"selected level {c.OldPreferred} -> {c.NewPreferred}";
@@ -30,7 +31,8 @@ public static class PlanFormatter
             return $"{c.Scope}: {selected}";
         }
         var max = $"{c.Scope}: max {c.OldMax} -> {c.NewMax}";
-        return c.ChangesPreferred ? $"{max} ({selected})" : max;
+        var line = c.ChangesPreferred ? $"{max} ({selected})" : max;
+        return c.Raises && c.RevealEpoch is { } epoch ? $"{line}, reveals {epoch} (ascension + potions)" : line;
     }
 
     public static IReadOnlyList<string> FormatRejections(Plan plan) =>

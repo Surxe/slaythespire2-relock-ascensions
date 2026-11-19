@@ -40,7 +40,7 @@ public sealed record Preview(
     }
 }
 
-/// <summary>Everything a relock editor needs: one row per scope, starting at the suggestion.</summary>
+/// <summary>Everything a relock editor needs: one row per scope, starting at what is unlocked.</summary>
 public sealed record EditorState(
     TargetInfo Target,
     IReadOnlyList<EditorRow> Rows,
@@ -71,7 +71,7 @@ public static class RelockApi
 {
     public static TargetInfo DescribeTarget() => Guard(GameAdapter.DescribeTarget, new TargetInfo(null, "unavailable", null));
 
-    /// <summary>Current scopes, for building a manual-relock UI.</summary>
+    /// <summary>Current scopes, for building a UI that changes ascension maxes.</summary>
     public static ProgressSnapshot? ReadState() => Compat.CanWrite ? Guard(GameAdapter.ReadSnapshot, null) : null;
 
     /// <summary>Every playable character the game knows, including ones not yet in the save.</summary>
@@ -88,8 +88,8 @@ public static class RelockApi
 
     /// <summary>
     /// Rows for a relock editor: every scope with what is unlocked, what the run history earned,
-    /// and the value to start at. Reads the save and history; writes nothing. Changes made in the
-    /// editor go back through <see cref="PreviewManual"/>.
+    /// and how high it may go. Reads the save and history; writes nothing. Changes made in the
+    /// editor, lower or higher, go back through <see cref="PreviewManual"/>.
     /// </summary>
     public static EditorState ReadEditor()
     {
@@ -112,7 +112,7 @@ public static class RelockApi
         }
     }
 
-    /// <summary>Manual relock preview. Writes nothing.</summary>
+    /// <summary>Manual preview: change scopes to the requested maxes, lower or higher. Writes nothing.</summary>
     public static Preview PreviewManual(IEnumerable<RelockRequest> requests)
     {
         var target = DescribeTarget();

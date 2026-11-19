@@ -27,14 +27,29 @@ public class RecomputeTests
     }
 
     [Fact]
-    public void Never_raises()
+    public void Raises_to_evidence()
     {
-        var snap = Snapshot(Char(Ironclad, 2, 2), Mp(0, 0));
+        var snap = Snapshot(HiddenChar(Ironclad, 2, 2), Mp(0, 0));
         var runs = new[] { Sp(Ironclad, 9, win: true), MpRun(8, win: true) };
         var result = Planner.Recompute(snap, runs, AllCaps);
 
-        Assert.True(result.Plan.IsEmpty);
+        Assert.Equal(new[]
+        {
+            new Change(Scope.Character(Ironclad), 2, 10, 2, 2, "IRONCLAD4_EPOCH"),
+            new Change(Scope.Multiplayer, 0, 9, 0, 0),
+        }, result.Plan.Changes);
         Assert.Empty(result.Plan.Rejections);
+    }
+
+    [Fact]
+    public void Locked_blitz_evidence_is_clamped_to_its_ceiling()
+    {
+        var runs = new[] { Run(RunMode.Blitz, 4, win: true) };
+
+        Assert.True(Planner.Recompute(Snapshot(LockedBlitz(2, 2)), runs, AllCaps).Plan.IsEmpty);
+
+        var lower = Planner.Recompute(Snapshot(LockedBlitz(2, 2)), new[] { Run(RunMode.Blitz, 1) }, AllCaps);
+        Assert.Equal(new Change(Scope.Blitz, 2, 1, 2, 1), Assert.Single(lower.Plan.Changes));
     }
 
     [Fact]

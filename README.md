@@ -1,8 +1,12 @@
 # Relock Ascensions (Slay the Spire 2 mod)
 
 Lowers ascension levels that were unlocked earlier by other means (unlock mods, another
-device), per character, multiplayer and Blitz. Two routes: a manual relock of one scope, or a
-recompute that proposes what the local run history can prove. Both only ever lower a max.
+device), per character, multiplayer and Blitz, and for convenience raises them too. Two routes:
+a manual change of one scope (0 to its cap), or a recompute that proposes what the local run
+history can prove. Both move a max either way. Raising a vanilla character also reveals its
+`<CHAR>4_EPOCH` on the timeline, which the game needs before it honours the max and which also
+unlocks that character's three potions. Blitz can be raised only once Blitz itself is unlocked;
+the mod never unlocks it. Relocking never hides an epoch (spec 10.10).
 
 Design: [docs/spec.md](docs/spec.md). Background: [docs/research.md](docs/research.md).
 
@@ -11,13 +15,18 @@ built. Nothing runs at load; every action starts from the screen or the `relock`
 
 ## Relock screen
 
-**Relock Ascensions** sits in the main menu's button column, above Quit, and opens a screen built
-from the game's own Mods screen. It has one row per character, plus Multiplayer and Blitz. Each
-row shows what is unlocked and what your run history earned (`Unlocked 10, earned 9`), and the
-settings screen's `< 9 >` arrows start at the earned level. Move any row down, or back up to what
-is unlocked. **Reset** returns every row to the earned level. **Save** lists the changes in the
-game's confirmation popup and writes them only when you confirm. Rows with no runs start at their
-unlocked level.
+**Relock Ascensions** sits in the main menu's button column, above Quit, and opens a screen
+built from the game's own Mods screen. It has one row per character, plus Multiplayer and Blitz.
+Each row shows what is unlocked and what your run history earned (`Unlocked 10, earned 9`), and
+the settings screen's `< 9 >` arrows start at the unlocked level. Move any row down to 0 or up
+to the cap (10, Blitz 5; Blitz stops at its current level while Blitz is locked). A row's name
+turns green above its unlocked level and gold below. The buttons sit at the bottom of the list.
+**Reset** returns every row to its unlocked level. **Use Run History** sets every row to what
+its runs earned (rows with no runs stay); its help shows in the info panel on hover or
+controller focus. **Save** lists the changes, grouped Up and Down with one line naming every
+character whose Ascension and potions it unlocks, in the game's confirmation popup and writes
+them only when you confirm. A character appears only once it has been selected in character
+select.
 
 Nothing here patches the game (no Harmony). The button is a copy of the game's own menu button
 in the game's own column, added when the main menu enters the scene tree, so it animates, takes
@@ -41,20 +50,22 @@ Open the dev console with the backtick key (available whenever the game runs mod
 ```
 relock target                 show the profile that would be written
 relock state                  every scope with max / selected level / cap (alias: status)
-relock set <scope> <max>      preview a manual relock (scope: ironclad, mp, blitz, CHARACTER.X)
-relock recompute              preview a recompute from run history, with evidence per scope
+relock set <scope> <max>      preview a new max, 0 to the cap (scope: ironclad, mp, blitz, CHARACTER.X)
+relock recompute              preview a recompute from run history (raises or lowers), with evidence per scope
 relock confirm                write the last preview
 relock cancel                 drop the last preview
 ```
 
 "Selected level" is the game's preferred ascension: the level character select starts on. A
-relock lowers it only when it would end up above the new max.
+relock lowers it only when it would end up above the new max; a raise leaves it as it is. A
+raise that reveals an epoch says so in the preview: `, reveals IRONCLAD4_EPOCH (ascension +
+potions)`.
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `src/RelockAscensions.Core/` | Pure C# (no game types): model, validation, manual relock, evidence replay, preferred clamping, staleness check, preview text. |
+| `src/RelockAscensions.Core/` | Pure C# (no game types): model, validation, manual relock, evidence replay, preferred clamping, ascension-epoch map, staleness check, preview text. |
 | `tests/RelockAscensions.Core.Tests/` | xUnit tests for the core, plus an opt-in golden replay test. |
 | `src/RelockAscensions/` | The mod assembly: core sources compiled in, plus the game adapter (`GameAdapter`, `Compat`), the front-end seam (`RelockApi`), `Settings` and `BaseLibBridge`. No BaseLib reference. |
 | `src/RelockAscensions/Ui/` | Main-menu front-end: `MainMenuHook` (adds the button), `RelockScreen` (the editor submenu), `AscensionPaginator`, `SceneParts` (game scenes it is built from), `Popups`, `Strings`. |
@@ -91,12 +102,12 @@ A front-end only talks to `RelockAscensions.RelockApi`:
 2. `ReadState()` lists scopes for a picker; `PreviewManual(requests)` or `PreviewRecompute()`
    returns a `Preview` (call `Format()` for `scope: old -> new` text, or build a
    `PreviewSummary` for structured rows). Neither writes. `ReadEditor()` returns one
-   `EditorRow` per scope (unlocked, earned, suggested) for an editor UI; its edits become
+   `EditorRow` per scope (unlocked, earned, ceiling, `FromHistory`, epoch flags) for an editor UI; its edits become
    requests through `RelockEditor.Requests`. `CharacterTitle(scope)` gives the
    game's localized name for a character.
 3. After the player confirms, `Apply(preview.Plan)`. It re-reads the save, discards the plan if
-   anything moved since the preview, refuses during a run, and saves through
-   `SaveManager.SaveProgressFile()`.
+   anything moved since the preview (epoch state included), refuses during a run, reveals the
+   epochs raises need, and saves through `SaveManager.SaveProgressFile()`.
 
 ## Decisions and remaining work
 

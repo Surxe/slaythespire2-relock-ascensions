@@ -25,6 +25,13 @@ internal static class Compat
         (typeof(SaveManager), nameof(SaveManager.GetAllRunHistoryNames)),
         (typeof(SaveManager), nameof(SaveManager.LoadRunHistory)),
         (typeof(SaveManager), nameof(SaveManager.SaveProgressFile)),
+        (typeof(SaveManager), nameof(SaveManager.IsEpochRevealed)),
+        (typeof(SaveManager), nameof(SaveManager.ObtainEpochOverride)),
+        (typeof(ProgressState), nameof(ProgressState.Epochs)),
+        (typeof(ProgressState), EpochsFieldName),
+        (typeof(SerializableEpoch), nameof(SerializableEpoch.Id)),
+        (typeof(SerializableEpoch), nameof(SerializableEpoch.State)),
+        (typeof(SerializableEpoch), nameof(SerializableEpoch.ObtainDate)),
         (typeof(ProgressState), nameof(ProgressState.CharacterStats)),
         (typeof(ProgressState), nameof(ProgressState.MaxMultiplayerAscension)),
         (typeof(ProgressState), nameof(ProgressState.PreferredMultiplayerAscension)),
@@ -43,6 +50,8 @@ internal static class Compat
         (typeof(AscensionManager), "maxAscensionAllowed"),
     };
 
+    private const string EpochsFieldName = "_epochs";
+
     private static readonly Lazy<IReadOnlyList<string>> _missing = new(FindMissing);
 
     /// <summary>Required members absent from the loaded game build. Empty when compatible.</summary>
@@ -55,6 +64,18 @@ internal static class Compat
     public static readonly MethodInfo? MaxBlitzSetter = AccessTools.PropertySetter(typeof(ProgressState), "MaxBlitzAscension");
     public static readonly MethodInfo? PreferredBlitzGetter = AccessTools.PropertyGetter(typeof(ProgressState), "PreferredBlitzAscension");
     public static readonly MethodInfo? PreferredBlitzSetter = AccessTools.PropertySetter(typeof(ProgressState), "PreferredBlitzAscension");
+
+    /// <summary>
+    /// The private epoch list behind <see cref="ProgressState.Epochs"/>. Undo removes an entry the
+    /// mod created from it; the game has no public way to delete one.
+    /// </summary>
+    public static readonly FieldInfo? EpochsField = AccessTools.Field(typeof(ProgressState), EpochsFieldName);
+
+    /// <summary>
+    /// <c>EpochState.Revealed</c>, resolved by name so the mod does not bake in the enum value
+    /// (spec 5.3). Read lazily: a build without it fails here, not at load.
+    /// </summary>
+    public static EpochState Revealed => (EpochState)Enum.Parse(typeof(EpochState), "Revealed");
 
     public static bool HasBlitz =>
         MaxBlitzGetter is not null && MaxBlitzSetter is not null &&
