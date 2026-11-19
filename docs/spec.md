@@ -317,7 +317,7 @@ Resolved (implemented defaults; revisit if testing shows otherwise):
       epoch the save will reveal. Reset, Use Run History and Save sit left-justified in the
       list box, pinned to its bottom.
       The right-hand panel notes that a character appears only after it has been selected once
-      in character select, and on a focused row whether raising unlocks its Ascension and
+      in character select, and on a hovered or focused row whether raising unlocks its Ascension and
       potions or whether Blitz must be unlocked first. No "earned more than unlocked" nudge.
     - **Player-facing docs (later):** FAQ "Can I unlock ascensions too? A: Yes! While the
       selling point is relocking ascensions and many other mods feature unlocking, this mod

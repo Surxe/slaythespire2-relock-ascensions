@@ -39,6 +39,7 @@ public partial class RelockScreen : NSubmenu
 
     private sealed record Row(
         EditorRow Model,
+        Control Node,
         Panel Highlight,
         MegaRichTextLabel Title,
         MegaRichTextLabel Detail,
@@ -57,6 +58,7 @@ public partial class RelockScreen : NSubmenu
 
     private EditorState? _state;
     private Row? _focused;
+    private Row? _hovered; // the mouse is over this row; its text wins over the focused row's
     private bool _busy;
     private bool _historyHelp; // the pointer or focus is on Use Run History
 
@@ -126,6 +128,7 @@ public partial class RelockScreen : NSubmenu
         RemoveAllChildren(_rowList);
         _rows.Clear();
         _focused = null;
+        _hovered = null;
     }
 
     /// <summary>Reads the save and history again and rebuilds every row at what is unlocked.</summary>
@@ -134,6 +137,7 @@ public partial class RelockScreen : NSubmenu
         RemoveAllChildren(_rowList);
         _rows.Clear();
         _focused = null;
+        _hovered = null;
 
         _state = RelockApi.ReadEditor();
         _infoTitle.Text = Strings.ProfileName(_state.Target);
@@ -158,7 +162,9 @@ public partial class RelockScreen : NSubmenu
     private Row AddRow(EditorRow model)
     {
         var node = SceneParts.InstantiateAs<RelockRow>(SceneParts.ModdingRow);
-        node.MouseFilter = MouseFilterEnum.Ignore;
+        // Pass: the row sees the pointer (for the info panel) but takes no clicks; the paginator
+        // inside it still gets them.
+        node.MouseFilter = MouseFilterEnum.Pass;
         node.GetNode<Control>("PlatformIcon").Visible = false;
         node.GetNode<Control>("Tickbox").Visible = false;
 
@@ -197,24 +203,86 @@ public partial class RelockScreen : NSubmenu
             : Strings.Text("SCREEN.detailNoRuns", ("unlocked", model.Unlocked)));
         paginator.Setup(model.Max, model.Unlocked);
 
-        var row = new Row(model, highlight, title, detail, paginator);
+        var row = new Row(model, node, highlight, title, detail, paginator);
         paginator.ValueChanged += _ => Refresh();
         paginator.Connect(Control.SignalName.FocusEntered, Callable.From(() => OnRowFocus(row, focused: true)));
         paginator.Connect(Control.SignalName.FocusExited, Callable.From(() => OnRowFocus(row, focused: false)));
+        title.MouseFilter = MouseFilterEnum.Ignore;
+        detail.MouseFilter = MouseFilterEnum.Ignore;
+        // Every control in the row reports the pointer: the paginator's arrows stop mouse events,
+        // so the row alone would not see them on every Godot version.
+        foreach (var control in Controls(node))
+        {
+            control.Connect(Control.SignalName.MouseEntered, Callable.From(() => OnRowHover(row, hovered: true)));
+            control.Connect(Control.SignalName.MouseExited, Callable.From(() => OnRowHover(row, hovered: false)));
+        }
         return row;
+    }
+
+    private static IEnumerable<Control> Controls(Node node)
+    {
+        if (node is Control control)
+        {
+            yield return control;
+        }
+        foreach (var child in node.GetChildren())
+        {
+            foreach (var c in Controls(child))
+            {
+                yield return c;
+            }
+        }
     }
 
     private void OnRowFocus(Row row, bool focused)
     {
-        // Same highlight the Mods list uses for a focused row.
-        var color = StsColors.darkBlue;
-        color.A = RowFocusAlpha;
-        row.Highlight.Modulate = focused ? color : Colors.Transparent;
         if (focused)
         {
             _focused = row;
-            RefreshInfo();
         }
+        else if (_focused == row)
+        {
+            _focused = null;
+        }
+        UpdateHighlight(row);
+        RefreshInfo();
+    }
+
+    private void OnRowHover(Row row, bool hovered)
+    {
+        // Moving between controls of one row fires exit then enter; only leaving the row's
+        // rect counts as leaving it.
+        if (!hovered && row.Node.GetGlobalRect().HasPoint(row.Node.GetGlobalMousePosition()))
+        {
+            return;
+        }
+        var previous = _hovered;
+        if (hovered)
+        {
+            _hovered = row;
+        }
+        else if (_hovered == row)
+        {
+            _hovered = null;
+        }
+        if (previous == _hovered)
+        {
+            return;
+        }
+        if (previous is not null)
+        {
+            UpdateHighlight(previous);
+        }
+        UpdateHighlight(row);
+        RefreshInfo();
+    }
+
+    /// <summary>Same highlight the Mods list uses, for the focused and the hovered row.</summary>
+    private void UpdateHighlight(Row row)
+    {
+        var color = StsColors.darkBlue;
+        color.A = RowFocusAlpha;
+        row.Highlight.Modulate = row == _focused || row == _hovered ? color : Colors.Transparent;
     }
 
     private IReadOnlyList<RelockRequest> Requests() =>
@@ -252,7 +320,7 @@ public partial class RelockScreen : NSubmenu
         {
             text += "\n\n" + Strings.Text("SCREEN.historyHelp");
         }
-        else if (_focused is { } row)
+        else if ((_hovered ?? _focused) is { } row)
         {
             var m = row.Model;
             var scope = Strings.ScopeName(m.Scope);
