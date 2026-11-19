@@ -467,7 +467,7 @@ public partial class RelockScreen : NSubmenu
             var width = button == _historyButton ? size.X * wideFactor : size.X;
             if (width > size.X)
             {
-                Widen(button, size.X, width - size.X);
+                Widen(button, size, width);
             }
             button.CustomMinimumSize = new Vector2(width, size.Y);
             button.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
@@ -492,22 +492,74 @@ public partial class RelockScreen : NSubmenu
     }
 
     /// <summary>
-    /// Widening the button alone leaves its art and label (laid out for the original width) as
-    /// they were, so every fixed-width control inside that spans most of the button grows by the
-    /// same amount. The log lines show the sizes, for checking against the game's layout.
+    /// Share of the button art kept unstretched at each end when a button is widened. The
+    /// middle of the art stretches; the ends (rounded corners, trim) keep their shape.
     /// </summary>
-    private static void Widen(NButton button, float originalWidth, float extra)
+    private const float ArtCapShare = 0.3f;
+
+    /// <summary>
+    /// Widens a Mods-screen button (<c>NModMenuButton</c>). Its art, <c>Visuals/Image</c>, keeps
+    /// its aspect ratio and stays centered, so a wider button shows the same art; its label is a
+    /// fixed box. The script needs that image to stay a <c>TextureRect</c> (and drives the hover
+    /// glow through its shader material), so it is kept, without a texture, and the art is drawn
+    /// as three slices beside it that share the material: ends at the original scale, middle
+    /// stretched. The label box spans the middle.
+    /// </summary>
+    private static void Widen(NButton button, Vector2 original, float width)
     {
-        foreach (var control in Controls(button).Where(c => c != button))
+        var visuals = button.GetNode<Control>("Visuals");
+        var image = button.GetNode<TextureRect>("Visuals/Image");
+        var label = button.GetNode<Control>("Visuals/Label");
+        if (image.Texture is not { } texture)
         {
-            var before = control.Size;
-            // Controls anchored to both sides already follow the button; widen only fixed ones.
-            if (before.X >= originalWidth * 0.5f && Mathf.IsEqualApprox(control.AnchorLeft, control.AnchorRight))
-            {
-                control.Size = before with { X = before.X + extra };
-            }
-            Log.Info($"Widen {button.Name}/{button.GetPathTo(control)}: {before} -> {control.Size}");
+            Log.Warn($"{button.Name}: no button art to widen");
+            return;
         }
+
+        // Its own glow material: a copy of a scene button may share the original's.
+        var material = image.Material?.Duplicate() as Material;
+        image.Material = material;
+
+        // Where the original art sits: scaled to fit, centered (stretch_mode keep aspect centered).
+        var art = texture.GetSize();
+        var scale = Mathf.Min(original.X / art.X, original.Y / art.Y);
+        var drawn = art * scale;
+        var top = (original.Y - drawn.Y) / 2;
+        var side = (original.X - drawn.X) / 2; // empty margin left and right of the art
+        var cap = art.X * ArtCapShare;
+        var capWidth = cap * scale;
+        var middleWidth = width - 2 * side - 2 * capWidth;
+
+        var slices = new[]
+        {
+            (Region: new Rect2(0, 0, cap, art.Y), X: side, Width: capWidth),
+            (Region: new Rect2(cap, 0, art.X - 2 * cap, art.Y), X: side + capWidth, Width: middleWidth),
+            (Region: new Rect2(art.X - cap, 0, cap, art.Y), X: width - side - capWidth, Width: capWidth),
+        };
+        var index = image.GetIndex();
+        foreach (var (region, x, w) in slices)
+        {
+            var slice = new TextureRect
+            {
+                Name = "WideImage",
+                Texture = new AtlasTexture { Atlas = texture, Region = region },
+                ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+                StretchMode = TextureRect.StretchModeEnum.Scale,
+                Material = material,
+                MouseFilter = MouseFilterEnum.Ignore,
+                Position = new Vector2(x, top),
+                Size = new Vector2(w, drawn.Y),
+            };
+            visuals.AddChild(slice);
+            visuals.MoveChild(slice, index++);
+        }
+        image.Texture = null; // kept for the script; the slices draw the art
+
+        // The label box (anchored to the center) spans the stretched middle.
+        var half = middleWidth / 2;
+        label.OffsetLeft = -half;
+        label.OffsetRight = half;
+        Log.Info($"{button.Name}: art {art} at scale {scale:0.###}, widened {original.X} -> {width}");
     }
 
     /// <summary>
